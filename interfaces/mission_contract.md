@@ -1,14 +1,28 @@
 # Mission Contract (V1)
 
-Defines mission manager interaction model.
+Defines mission scenario format consumed by mission manager.
 
-## Mission shape
-- `mission_id`
-- `steps`: ordered list of mission primitives
-- `constraints`: timeout, geofence, safety policy
+## Mission message format
 
-## V1 scenario
-- `takeoff -> waypoint -> land`
+```yaml
+mission_id: string
+vehicle_id: string
+actions:
+  - action: takeoff
+    params:
+      target_altitude_m: 10
+  - action: waypoint
+    params:
+      lat: 37.0
+      lon: -122.0
+      alt: 12
+  - action: land
+    params: {}
+constraints:
+  timeout_s: 300
+```
 
-## Adapter boundary
-Mission manager depends only on contracts, not simulator or hardware internals.
+## Rules
+- `actions` is an ordered list of high-level steps.
+- Each action is adapter-agnostic and maps to the vehicle contract.
+- V1 required scenario is `takeoff -> waypoint -> land`.

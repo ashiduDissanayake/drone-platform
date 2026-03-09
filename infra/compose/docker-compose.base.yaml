@@ -1,0 +1,40 @@
+services:
+  px4:
+    image: alpine:3.20
+    command: ["sh", "-lc", "echo px4 service placeholder; sleep infinity"]
+    labels:
+      drone.role: simulation_stack
+      drone.topology_role: sim_host
+    environment:
+      RUN_HOST_ROLE: ${PX4_RUN_HOST_ROLE:-sim_host}
+
+  gazebo:
+    image: alpine:3.20
+    command: ["sh", "-lc", "echo gazebo service placeholder; sleep infinity"]
+    labels:
+      drone.role: simulation_stack
+      drone.topology_role: sim_host
+    environment:
+      RUN_HOST_ROLE: ${GAZEBO_RUN_HOST_ROLE:-sim_host}
+
+  ros2:
+    image: alpine:3.20
+    command: ["sh", "-lc", "echo ros2 service placeholder; sleep infinity"]
+    labels:
+      drone.role: autonomy_stack
+      drone.topology_role: companion_host
+    environment:
+      RUN_HOST_ROLE: ${ROS2_RUN_HOST_ROLE:-companion_host}
+
+  qgc:
+    image: alpine:3.20
+    command: ["sh", "-lc", "echo qgc service placeholder; sleep infinity"]
+    labels:
+      drone.role: ground_control_stack
+      drone.topology_role: gcs_host
+    environment:
+      RUN_HOST_ROLE: ${QGC_RUN_HOST_ROLE:-gcs_host}
+
+networks:
+  platform_net:
+    driver: bridge

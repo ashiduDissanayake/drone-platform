@@ -1,0 +1,4 @@
+---
+- name: Autonomy role placeholder
+  ansible.builtin.debug:
+    msg: "autonomy role skeleton - replace with provisioning tasks"

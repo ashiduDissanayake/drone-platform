@@ -1,9 +1,11 @@
 # Compose Skeleton
 
-This directory holds compose files for role-based service composition.
+This directory holds role-oriented compose templates.
 
-Current file:
-- `compose.base.yml`: placeholder service map for autonomy and adapters.
+## Files
+- `docker-compose.base.yaml`: placeholder services for PX4, Gazebo, ROS2, and QGC.
+- `compose.base.yml`: legacy placeholder from initial bootstrap (kept temporarily).
 
-Future work:
-- Generate compose overlays from deployment selections.
+## Notes
+- Each service includes `drone.role` and `drone.topology_role` labels.
+- `RUN_HOST_ROLE` environment variables are placeholders for future topology-driven execution.

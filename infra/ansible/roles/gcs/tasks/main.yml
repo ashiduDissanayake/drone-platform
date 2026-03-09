@@ -1,0 +1,4 @@
+---
+- name: GCS role placeholder
+  ansible.builtin.debug:
+    msg: "gcs role skeleton - replace with provisioning tasks"
