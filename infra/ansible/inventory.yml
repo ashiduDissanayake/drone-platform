@@ -1,10 +1,27 @@
+# Template inventory aligned to inventory/devices.example.yaml
+# Replace ansible_host/user values per your environment.
 all:
   children:
     control_host:
-      hosts: {}
+      hosts:
+        devbox-01:
+          ansible_host: 192.168.1.10
+          ansible_user: drone
+
     companion_host:
-      hosts: {}
+      hosts:
+        companion-01:
+          ansible_host: 192.168.1.20
+          ansible_user: drone
+
     sim_host:
-      hosts: {}
+      hosts:
+        sim-01:
+          ansible_host: 192.168.1.30
+          ansible_user: drone
+
     gcs_host:
-      hosts: {}
+      hosts:
+        gcs-01:
+          ansible_host: 192.168.1.40
+          ansible_user: operator

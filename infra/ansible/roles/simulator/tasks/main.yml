@@ -1,0 +1,4 @@
+---
+- name: Simulator role placeholder
+  ansible.builtin.debug:
+    msg: "simulator role skeleton - replace with provisioning tasks"

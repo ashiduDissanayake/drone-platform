@@ -31,12 +31,22 @@ V1 focus:
 - `inventory`: what devices exist.
 - `deployment`: chosen profile + topology + inventory combination.
 
+## Development shell (macOS and Linux)
+
+1. Install Nix with flakes enabled.
+2. Enter the shell from repo root:
+   - `nix develop`
+3. Verify config model wiring:
+   - `python3 ops/scripts/validate-config.py --all`
+
+The shell includes Python, YAML linting, pre-commit, and CLI tools for Docker Compose and Ansible.
+
 ## Quick start
 
-1. Enter dev shell (if Nix installed):
-   - `nix develop`
+1. Optional bootstrap helper:
+   - `./ops/scripts/bootstrap-dev.sh`
 2. Run config validation:
-   - `./ops/scripts/validate-config.sh`
+   - `python3 ops/scripts/validate-config.py --all`
 3. Review onboarding docs:
    - `docs/onboarding/getting-started.md`
 

@@ -3,6 +3,7 @@
 ## Prerequisites
 - Nix (optional but recommended)
 - Bash
+- Python 3.10+
 
 ## Setup
 1. Clone repo.
@@ -11,7 +12,7 @@
 3. Run bootstrap helper:
    - `./ops/scripts/bootstrap-dev.sh`
 4. Validate config model:
-   - `./ops/scripts/validate-config.sh`
+   - `python3 ops/scripts/validate-config.py --all`
 
 ## Config workflow
 1. Choose a profile in `profiles/`.

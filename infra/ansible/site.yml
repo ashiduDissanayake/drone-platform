@@ -1,6 +1,18 @@
 ---
-- name: Drone platform base provisioning (skeleton)
-  hosts: all
+- name: Simulator role skeleton
+  hosts: sim_host
   gather_facts: true
   roles:
-    - common
+    - simulator
+
+- name: Autonomy role skeleton
+  hosts: companion_host:control_host
+  gather_facts: true
+  roles:
+    - autonomy
+
+- name: Ground control role skeleton
+  hosts: gcs_host:control_host
+  gather_facts: true
+  roles:
+    - gcs
