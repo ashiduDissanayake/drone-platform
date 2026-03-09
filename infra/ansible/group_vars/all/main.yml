@@ -1,3 +1,8 @@
 ---
 platform_name: drone-platform
 platform_env: v1-bootstrap
+
+deployment_name: full_sitl__single_device
+remote_workspace: /opt/drone-platform
+compose_base_file: docker-compose.base.yaml
+compose_override_file: docker-compose.full_sitl__single_device.yaml

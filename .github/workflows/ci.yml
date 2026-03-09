@@ -5,8 +5,29 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install lint dependencies
+        run: pip install yamllint pyyaml
+
+      - name: YAML lint
+        run: yamllint .
+
+      - name: Python syntax check
+        run: python3 -m py_compile ops/scripts/validate-config.py autonomy/mission_manager/main.py adapters/vehicle_adapter/main.py
+
   config-validation:
     runs-on: ubuntu-latest
+    needs: lint
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -35,6 +35,30 @@ services:
     environment:
       RUN_HOST_ROLE: ${QGC_RUN_HOST_ROLE:-gcs_host}
 
+  mission_manager:
+    image: alpine:3.20
+    command: ["sh", "-lc", "echo mission_manager placeholder; sleep infinity"]
+    labels:
+      drone.role: autonomy_stack
+      drone.topology_role: control_host
+    environment:
+      RUN_HOST_ROLE: ${MISSION_MANAGER_RUN_HOST_ROLE:-control_host}
+      VEHICLE_ADAPTER_ENDPOINT: ${VEHICLE_ADAPTER_ENDPOINT:-tcp://vehicle-adapter:5555}
+      TRANSPORT_KIND: ${TRANSPORT_KIND:-inproc}
+
+  vehicle_adapter:
+    image: alpine:3.20
+    command: ["sh", "-lc", "echo vehicle_adapter placeholder; sleep infinity"]
+    labels:
+      drone.role: adapter_stack
+      drone.topology_role: control_host
+    environment:
+      RUN_HOST_ROLE: ${VEHICLE_ADAPTER_RUN_HOST_ROLE:-control_host}
+      BIND_ENDPOINT: ${BIND_ENDPOINT:-tcp://0.0.0.0:5555}
+      TRANSPORT_KIND: ${TRANSPORT_KIND:-inproc}
+    ports:
+      - "5555:5555"
+
 networks:
   platform_net:
     driver: bridge

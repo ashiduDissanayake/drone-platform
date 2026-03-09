@@ -6,12 +6,14 @@ Provide a reproducible, role-oriented deployment path without locking into deep 
 ## Components
 - `infra/ansible/`: host orchestration and provisioning skeleton.
 - `infra/compose/docker-compose.base.yaml`: base service skeleton for PX4/Gazebo/ROS2/QGC.
+- `infra/compose/docker-compose.full_sitl__single_device.yaml`: runnable V1 stub override.
 
 ## How it maps to the config model
 1. Deployment selects a `profile`, `topology`, and `inventory`.
 2. Topology defines runtime role placement (`sim_host`, `companion_host`, `gcs_host`, etc.).
 3. Inventory provides concrete devices for those roles.
 4. Ansible inventory groups and compose role labels are the execution bridge.
+5. Transport placeholders (`VEHICLE_ADAPTER_ENDPOINT`, `BIND_ENDPOINT`, `TRANSPORT_KIND`) reserve the channel boundary for hybrid split-host execution.
 
 ## Practical flow
 1. Validate deployment config (`python3 ops/scripts/validate-config.py --all`).

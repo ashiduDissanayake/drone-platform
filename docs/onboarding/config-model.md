@@ -6,6 +6,7 @@ The configuration system is composed of four filesets:
 2. `topologies/`: role-to-device placement (not host-specific).
 3. `inventory/`: available concrete devices.
 4. `deployments/`: selected composition and role assignment.
+5. `missions/`: mission scenario catalog referenced by profile/deployment.
 
 ## Example relationship
 - profile: `full_sitl`

@@ -1,4 +1,75 @@
 ---
-- name: Autonomy role placeholder
+- name: Ensure remote workspace exists
+  ansible.builtin.file:
+    path: "{{ remote_workspace }}/infra/compose"
+    state: directory
+    mode: "0755"
+
+- name: Ensure remote deployments directory exists
+  ansible.builtin.file:
+    path: "{{ remote_workspace }}/deployments"
+    state: directory
+    mode: "0755"
+
+- name: Copy selected deployment yaml
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../deployments/{{ deployment_name }}.yaml"
+    dest: "{{ remote_workspace }}/deployments/{{ deployment_name }}.yaml"
+    mode: "0644"
+  when: "'control_host' in group_names"
+
+- name: Copy compose base file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../infra/compose/{{ compose_base_file }}"
+    dest: "{{ remote_workspace }}/infra/compose/{{ compose_base_file }}"
+    mode: "0644"
+  when: "'control_host' in group_names"
+
+- name: Copy compose override file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../infra/compose/{{ compose_override_file }}"
+    dest: "{{ remote_workspace }}/infra/compose/{{ compose_override_file }}"
+    mode: "0644"
+  when: "'control_host' in group_names"
+
+- name: Start placeholder compose services (best-effort)
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ remote_workspace }}/infra/compose/{{ compose_base_file }}"
+      - -f
+      - "{{ remote_workspace }}/infra/compose/{{ compose_override_file }}"
+      - up
+      - -d
+      - vehicle_adapter
+      - mission_manager
+  register: compose_up
+  changed_when: false
+  failed_when: false
+  when: "'control_host' in group_names"
+
+- name: Run mission manager stub from compose (best-effort)
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ remote_workspace }}/infra/compose/{{ compose_base_file }}"
+      - -f
+      - "{{ remote_workspace }}/infra/compose/{{ compose_override_file }}"
+      - run
+      - --rm
+      - mission_manager
+  register: mission_run
+  changed_when: false
+  failed_when: false
+  when: "'control_host' in group_names"
+
+- name: Show compose output summary
   ansible.builtin.debug:
-    msg: "autonomy role skeleton - replace with provisioning tasks"
+    msg:
+      - "compose up rc={{ compose_up.rc | default('n/a') }}"
+      - "mission run rc={{ mission_run.rc | default('n/a') }}"
+  when: "'control_host' in group_names"

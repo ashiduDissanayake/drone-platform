@@ -1,0 +1,32 @@
+services:
+  mission_manager:
+    image: python:3.11-slim
+    working_dir: /workspace
+    volumes:
+      - ../..:/workspace
+    command:
+      [
+        "sh",
+        "-lc",
+        "pip install --no-cache-dir pyyaml && python -m autonomy.mission_manager --deployment deployments/full_sitl__single_device.yaml"
+      ]
+    environment:
+      RUN_HOST_ROLE: ${MISSION_MANAGER_RUN_HOST_ROLE:-control_host}
+      TRANSPORT_KIND: ${TRANSPORT_KIND:-inproc}
+      VEHICLE_ADAPTER_ENDPOINT: ${VEHICLE_ADAPTER_ENDPOINT:-tcp://vehicle-adapter:5555}
+
+  vehicle_adapter:
+    image: python:3.11-slim
+    working_dir: /workspace
+    volumes:
+      - ../..:/workspace
+    command:
+      [
+        "sh",
+        "-lc",
+        "python -m adapters.vehicle_adapter --backend px4_sitl --command arm --payload '{\"vehicle_id\":\"vehicle-1\"}'"
+      ]
+    environment:
+      RUN_HOST_ROLE: ${VEHICLE_ADAPTER_RUN_HOST_ROLE:-control_host}
+      TRANSPORT_KIND: ${TRANSPORT_KIND:-inproc}
+      BIND_ENDPOINT: ${BIND_ENDPOINT:-tcp://0.0.0.0:5555}

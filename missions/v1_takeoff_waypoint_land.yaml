@@ -1,0 +1,21 @@
+apiVersion: drone-platform/v1
+kind: MissionScenario
+metadata:
+  name: v1_takeoff_waypoint_land
+spec:
+  vehicle_id: vehicle-1
+  actions:
+    - action: arm
+      params: {}
+    - action: takeoff
+      params:
+        target_altitude_m: 10
+    - action: goto_waypoint
+      params:
+        lat: 37.4275
+        lon: -122.1697
+        alt: 12
+    - action: land
+      params: {}
+    - action: disarm
+      params: {}
