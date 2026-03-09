@@ -1,0 +1,14 @@
+apiVersion: drone-platform/v1
+kind: Topology
+metadata:
+  name: single_device
+  description: "T1: all runtime roles colocated on one device role"
+spec:
+  device_roles:
+    control_host:
+      description: "Runs simulation, autonomy, adapters, and ops tooling"
+  role_bindings:
+    simulation_stack: control_host
+    autonomy_stack: control_host
+    adapter_stack: control_host
+    telemetry_stack: control_host

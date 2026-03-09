@@ -1,0 +1,4 @@
+---
+- name: Common role placeholder
+  ansible.builtin.debug:
+    msg: "common role skeleton - replace with provisioning tasks"

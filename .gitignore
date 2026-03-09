@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Nix
+.result
+.direnv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+build/
+dist/

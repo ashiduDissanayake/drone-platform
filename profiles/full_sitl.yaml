@@ -1,0 +1,22 @@
+apiVersion: drone-platform/v1
+kind: Profile
+metadata:
+  name: full_sitl
+  description: "Profile A: full software-in-the-loop simulation"
+spec:
+  components:
+    vehicle:
+      mode: simulated
+      backend: px4_sitl
+    world:
+      mode: simulated
+      backend: gazebo
+    telemetry:
+      mode: simulated
+      backend: mavlink
+    ground_control:
+      mode: operator_tool
+      backend: qgroundcontrol
+  mission_scenario:
+    name: v1_takeoff_waypoint_land
+    steps: [takeoff, waypoint, land]
