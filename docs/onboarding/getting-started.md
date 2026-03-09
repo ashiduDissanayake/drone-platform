@@ -13,6 +13,8 @@
    - `./ops/scripts/bootstrap-dev.sh`
 4. Validate config model:
    - `python3 ops/scripts/validate-config.py --all`
+5. Run mission manager stub:
+   - `python3 -m autonomy.mission_manager --deployment deployments/full_sitl__single_device.yaml`
 
 ## Config workflow
 1. Choose a profile in `profiles/`.
@@ -20,3 +22,4 @@
 3. Prepare inventory from `inventory/devices.example.yaml`.
 4. Create or select deployment in `deployments/`.
 5. Use `infra/ansible/` and `infra/compose/` as execution skeletons.
+6. See `docs/onboarding/run-mission-stub.md` for CLI/Compose stub demos.

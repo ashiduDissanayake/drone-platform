@@ -1,0 +1,12 @@
+extends: default
+
+ignore: |
+  .git/
+  .github/
+
+rules:
+  line-length:
+    max: 140
+  document-start: disable
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off']

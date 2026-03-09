@@ -58,6 +58,7 @@ def validate_deployment(deployment_path: Path) -> None:
     topology_ref = spec.get("topology")
     inventory_ref = spec.get("inventory")
     assignments = spec.get("role_assignments")
+    params = spec.get("params", {})
 
     if not isinstance(profile_ref, str) or not profile_ref:
         raise ValidationError(f"deployment missing profile string: {deployment_path}")
@@ -82,6 +83,32 @@ def validate_deployment(deployment_path: Path) -> None:
         raise ValidationError(f"referenced topology is not kind=Topology: {topology_path}")
     if inventory.get("kind") != "Inventory":
         raise ValidationError(f"referenced inventory is not kind=Inventory: {inventory_path}")
+
+    profile_mission_name = (
+        profile.get("spec", {})
+        .get("mission_scenario", {})
+        .get("name")
+    )
+    deployment_mission_name = params.get("mission") if isinstance(params, dict) else None
+
+    mission_candidates: list[str] = []
+    if isinstance(profile_mission_name, str) and profile_mission_name:
+        mission_candidates.append(profile_mission_name)
+    if isinstance(deployment_mission_name, str) and deployment_mission_name:
+        mission_candidates.append(deployment_mission_name)
+
+    if not mission_candidates:
+        raise ValidationError(
+            f"no mission scenario reference found in profile ({profile_path}) or deployment params"
+        )
+
+    for mission_name in sorted(set(mission_candidates)):
+        mission_path = ROOT_DIR / "missions" / f"{mission_name}.yaml"
+        if not mission_path.exists():
+            raise ValidationError(f"mission scenario '{mission_name}' missing: {mission_path}")
+        mission_data = load_yaml(mission_path)
+        if mission_data.get("kind") != "MissionScenario":
+            raise ValidationError(f"mission file is not kind=MissionScenario: {mission_path}")
 
     topology_spec = topology.get("spec")
     inventory_spec = inventory.get("spec")

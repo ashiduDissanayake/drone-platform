@@ -3,6 +3,7 @@
 - `overview.md`: model summary and V1 scope context.
 - `v1-scope.md`: in-scope vs out-of-scope boundaries.
 - `infra.md`: how infrastructure skeleton maps to profile/topology/deployment.
+- `mission-manager.md`: mission orchestration responsibility and adapter boundary.
 
 ## V1 usage patterns
 

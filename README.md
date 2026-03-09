@@ -47,7 +47,9 @@ The shell includes Python, YAML linting, pre-commit, and CLI tools for Docker Co
    - `./ops/scripts/bootstrap-dev.sh`
 2. Run config validation:
    - `python3 ops/scripts/validate-config.py --all`
-3. Review onboarding docs:
+3. Run mission stub:
+   - `python3 -m autonomy.mission_manager --deployment deployments/full_sitl__single_device.yaml`
+4. Review onboarding docs:
    - `docs/onboarding/getting-started.md`
 
 ## Status
