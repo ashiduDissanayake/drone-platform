@@ -14,5 +14,6 @@ spec:
   role_bindings:
     autonomy_stack: companion_host
     adapter_stack: companion_host
+    telemetry_stack: companion_host
     simulation_stack: sim_host
     ground_control_stack: gcs_host

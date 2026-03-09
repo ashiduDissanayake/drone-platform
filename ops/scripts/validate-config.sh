@@ -58,4 +58,9 @@ if ! grep -Eq "^[[:space:]]*topology:[[:space:]]*split_device" "${ROOT_DIR}/depl
   exit 1
 fi
 
+if ! grep -Eq "^[[:space:]]*profile:[[:space:]]*full_sitl" "${ROOT_DIR}/deployments/full_sitl__split_device.yaml"; then
+  echo "[validate][error] full_sitl__split_device profile mismatch"
+  exit 1
+fi
+
 echo "[validate] OK"
