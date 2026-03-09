@@ -34,8 +34,17 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
 def resolve_reference(value: str, base_dir: Path, suffix: str = ".yaml") -> Path:
     raw = Path(value)
+    # Absolute paths are used as-is.
+    if raw.is_absolute():
+        return raw
+    # If a suffix is present, decide whether to resolve relative to base_dir or ROOT_DIR.
     if raw.suffix:
-        return ROOT_DIR / raw if not raw.is_absolute() else raw
+        # Simple filenames (no directory component) are resolved under base_dir.
+        if raw.parent == Path("."):
+            return base_dir / raw.name
+        # Paths with directories are treated as repo-root-relative.
+        return ROOT_DIR / raw
+    # When no suffix is present, append the default suffix under base_dir.
     return base_dir / f"{value}{suffix}"
 
 
