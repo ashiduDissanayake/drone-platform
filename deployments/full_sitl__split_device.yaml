@@ -1,0 +1,14 @@
+apiVersion: drone-platform/v1
+kind: Deployment
+metadata:
+  name: full_sitl__split_device
+spec:
+  profile: full_sitl
+  topology: split_device
+  inventory: devices.example.yaml
+  role_assignments:
+    companion_host: companion-01
+    sim_host: sim-01
+    gcs_host: gcs-01
+  params:
+    mission: v1_takeoff_waypoint_land

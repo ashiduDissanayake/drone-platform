@@ -1,0 +1,6 @@
+---
+- name: Drone platform base provisioning (skeleton)
+  hosts: all
+  gather_facts: true
+  roles:
+    - common

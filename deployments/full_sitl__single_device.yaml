@@ -1,0 +1,12 @@
+apiVersion: drone-platform/v1
+kind: Deployment
+metadata:
+  name: full_sitl__single_device
+spec:
+  profile: full_sitl
+  topology: single_device
+  inventory: devices.example.yaml
+  role_assignments:
+    control_host: devbox-01
+  params:
+    mission: v1_takeoff_waypoint_land

@@ -1,0 +1,22 @@
+apiVersion: drone-platform/v1
+kind: Profile
+metadata:
+  name: companion_hybrid
+  description: "Profile C: real vehicle path with simulated world support where applicable"
+spec:
+  components:
+    vehicle:
+      mode: real
+      backend: px4
+    world:
+      mode: simulated
+      backend: gazebo
+    telemetry:
+      mode: mixed
+      backend: mavlink
+    ground_control:
+      mode: operator_tool
+      backend: qgroundcontrol
+  mission_scenario:
+    name: v1_takeoff_waypoint_land
+    steps: [takeoff, waypoint, land]

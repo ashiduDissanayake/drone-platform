@@ -1,0 +1,10 @@
+all:
+  children:
+    control_host:
+      hosts: {}
+    companion_host:
+      hosts: {}
+    sim_host:
+      hosts: {}
+    gcs_host:
+      hosts: {}

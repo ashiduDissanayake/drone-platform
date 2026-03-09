@@ -1,0 +1,18 @@
+apiVersion: drone-platform/v1
+kind: Topology
+metadata:
+  name: split_device
+  description: "T2: roles distributed across multiple device roles"
+spec:
+  device_roles:
+    companion_host:
+      description: "Runs autonomy and selected adapters"
+    sim_host:
+      description: "Runs simulation services"
+    gcs_host:
+      description: "Runs operator station tools"
+  role_bindings:
+    autonomy_stack: companion_host
+    adapter_stack: companion_host
+    simulation_stack: sim_host
+    ground_control_stack: gcs_host
