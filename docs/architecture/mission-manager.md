@@ -16,4 +16,5 @@ The mission manager turns a deployment selection into ordered, adapter-agnostic 
 
 ## Adapter interaction
 In V1 bootstrap, mission manager uses an in-process adapter object.
+Default examples use the `ardupilot_sitl` backend tag, but command generation remains adapter-agnostic.
 Compose files already declare transport placeholders (`TRANSPORT_KIND`, endpoints) for future split-host channels.

@@ -1,12 +1,12 @@
 services:
-  px4:
+  ardupilot:
     image: alpine:3.20
-    command: ["sh", "-lc", "echo px4 service placeholder; sleep infinity"]
+    command: ["sh", "-lc", "echo ardupilot service placeholder; sleep infinity"]
     labels:
       drone.role: simulation_stack
       drone.topology_role: sim_host
     environment:
-      RUN_HOST_ROLE: ${PX4_RUN_HOST_ROLE:-sim_host}
+      RUN_HOST_ROLE: ${ARDUPILOT_RUN_HOST_ROLE:-sim_host}
 
   gazebo:
     image: alpine:3.20

@@ -24,7 +24,7 @@ services:
       [
         "sh",
         "-lc",
-        "python -m adapters.vehicle_adapter --backend px4_sitl --command arm --payload '{\"vehicle_id\":\"vehicle-1\"}'"
+        "python -m adapters.vehicle_adapter --backend ardupilot_sitl --command arm --payload '{\"vehicle_id\":\"vehicle-1\"}'"
       ]
     environment:
       RUN_HOST_ROLE: ${VEHICLE_ADAPTER_RUN_HOST_ROLE:-control_host}

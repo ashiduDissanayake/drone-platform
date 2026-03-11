@@ -10,6 +10,7 @@ From repo root:
 
 Expected output:
 - Ordered mission commands (`arm`, `takeoff`, `goto_waypoint`, `land`, `disarm`).
+- Vehicle adapter logs should show the default backend tag `ardupilot_sitl`.
 - Vehicle adapter placeholder execution logs.
 - Telemetry state summaries after each command.
 

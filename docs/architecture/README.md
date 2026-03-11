@@ -9,6 +9,7 @@
 
 ### Profile A + T1 (single device)
 - `profile`: `full_sitl`
+- default vehicle backend tag: `ardupilot_sitl`
 - `topology`: `single_device`
 - Deployment maps all role bindings to one device role (`control_host`).
 - Compose services can run on one host while still preserving role labels.

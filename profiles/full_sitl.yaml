@@ -7,7 +7,7 @@ spec:
   components:
     vehicle:
       mode: simulated
-      backend: px4_sitl
+      backend: ardupilot_sitl
     world:
       mode: simulated
       backend: gazebo

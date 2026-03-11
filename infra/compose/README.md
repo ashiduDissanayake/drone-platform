@@ -3,7 +3,7 @@
 This directory holds role-oriented compose templates.
 
 ## Files
-- `docker-compose.base.yaml`: base placeholder services for PX4, Gazebo, ROS2, QGC, and stub runtime channels.
+- `docker-compose.base.yaml`: base placeholder services for ArduPilot SITL, Gazebo, ROS2, QGC, and stub runtime channels.
 - `docker-compose.full_sitl__single_device.yaml`: runnable override for mission-manager and vehicle-adapter stubs on one host.
 - `compose.base.yml`: legacy placeholder from initial bootstrap (kept temporarily).
 

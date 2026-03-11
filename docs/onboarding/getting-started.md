@@ -9,11 +9,14 @@
 1. Clone repo.
 2. Enter dev shell:
    - `nix develop`
-3. Run bootstrap helper:
+3. Note the V1 default backend path:
+   - Full SITL profile defaults to `ardupilot_sitl` for the vehicle component.
+   - Gazebo remains the world simulator backend.
+4. Run bootstrap helper:
    - `./ops/scripts/bootstrap-dev.sh`
-4. Validate config model:
+5. Validate config model:
    - `python3 ops/scripts/validate-config.py --all`
-5. Run mission manager stub:
+6. Run mission manager stub:
    - `python3 -m autonomy.mission_manager --deployment deployments/full_sitl__single_device.yaml`
 
 ## Config workflow
