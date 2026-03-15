@@ -1,6 +1,6 @@
 # Config Model Guide
 
-The configuration system is composed of four filesets:
+The configuration system is composed of five filesets:
 
 1. `profiles/`: simulated vs real component split.
 2. `topologies/`: role-to-device placement (not host-specific).

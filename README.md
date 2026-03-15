@@ -1,9 +1,10 @@
 # drone-platform
 
-Modular, profile-driven, topology-aware drone platform monorepo.
+ArduPilot-first, modular, profile-driven, topology-aware drone platform monorepo.
 
 V1 focus:
 - Scope: Profile A (Full SITL), Profile C (Companion Hybrid)
+- Autopilot default: ArduPilot SITL (kept behind the vehicle adapter boundary)
 - Topologies: T1 (Single Device), T2 (Split Device)
 - Scenario: takeoff -> waypoint -> land
 - Constraint: multi-device deployment from day one (no localhost-only assumptions)

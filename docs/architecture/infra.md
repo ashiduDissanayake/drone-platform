@@ -5,7 +5,7 @@ Provide a reproducible, role-oriented deployment path without locking into deep 
 
 ## Components
 - `infra/ansible/`: host orchestration and provisioning skeleton.
-- `infra/compose/docker-compose.base.yaml`: base service skeleton for PX4/Gazebo/ROS2/QGC.
+- `infra/compose/docker-compose.base.yaml`: base service skeleton for ArduPilot/Gazebo/ROS2/QGC.
 - `infra/compose/docker-compose.full_sitl__single_device.yaml`: runnable V1 stub override.
 
 ## How it maps to the config model

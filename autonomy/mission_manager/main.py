@@ -86,7 +86,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--vehicle-backend",
-        default="px4_sitl",
+        default="ardupilot_sitl",
         help="Backend tag used by the vehicle adapter stub",
     )
     return parser.parse_args()

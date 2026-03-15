@@ -17,5 +17,5 @@ Deployment files are the composition boundary and must reference concrete profil
 Validation tooling enforces that role assignments are consistent with topology roles and available inventory devices.
 
 ## Consequences
-- Pros: pluggable composition, reduced coupling between mission logic and runtime placement, clear support for single-device and split-device variants.
+- Pros: pluggable composition, reduced coupling between mission logic and runtime placement, clear support for single device and split device variants.
 - Cons: requires validation to prevent incompatible combinations and adds some configuration surface area.

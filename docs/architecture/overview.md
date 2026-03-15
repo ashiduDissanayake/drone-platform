@@ -10,6 +10,7 @@ The platform is modeled through four independent but composable layers:
 V1 validates:
 - Profile A: Full SITL
 - Profile C: Companion Hybrid
+- ArduPilot SITL as default autopilot backend (via adapter boundary)
 - Topology T1: Single Device
 - Topology T2: Split Device
 - Mission path: takeoff -> waypoint -> land

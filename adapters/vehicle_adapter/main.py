@@ -18,7 +18,7 @@ class VehicleCommand:
 class VehicleAdapter:
     """Placeholder vehicle adapter that logs commands and emits fake telemetry."""
 
-    def __init__(self, backend: str = "px4_sitl") -> None:
+    def __init__(self, backend: str = "ardupilot_sitl") -> None:
         self.backend = backend
 
     def execute(self, command: VehicleCommand) -> dict[str, Any]:
@@ -61,7 +61,7 @@ class VehicleAdapter:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run vehicle adapter stub")
-    parser.add_argument("--backend", default="px4_sitl")
+    parser.add_argument("--backend", default="ardupilot_sitl")
     parser.add_argument("--command", default="arm", help="command name (arm/takeoff/goto_waypoint/land/disarm)")
     parser.add_argument(
         "--payload",

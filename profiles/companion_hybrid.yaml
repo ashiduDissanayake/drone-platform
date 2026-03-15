@@ -7,7 +7,7 @@ spec:
   components:
     vehicle:
       mode: real
-      backend: px4
+      backend: ardupilot
     world:
       mode: simulated
       backend: gazebo
