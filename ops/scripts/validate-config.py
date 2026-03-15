@@ -14,8 +14,14 @@ except ImportError as exc:  # pragma: no cover - bootstrap environment guard
     print("[validate][error] missing dependency: pyyaml (pip install pyyaml)", file=sys.stderr)
     raise SystemExit(2) from exc
 
-
+# Add repo root to path for imports
 ROOT_DIR = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT_DIR))
+
+from interfaces.logging import get_logger
+
+
+log = get_logger("validate")
 
 
 class ValidationError(Exception):
@@ -72,6 +78,11 @@ def validate_deployment(deployment_path: Path) -> None:
     profile_path = resolve_reference(profile_ref, ROOT_DIR / "profiles")
     topology_path = resolve_reference(topology_ref, ROOT_DIR / "topologies")
     inventory_path = resolve_reference(inventory_ref, ROOT_DIR / "inventory")
+
+    log.debug("resolving references",
+             profile=str(profile_path.relative_to(ROOT_DIR)),
+             topology=str(topology_path.relative_to(ROOT_DIR)),
+             inventory=str(inventory_path.relative_to(ROOT_DIR)))
 
     profile = load_yaml(profile_path)
     topology = load_yaml(topology_path)
@@ -177,6 +188,8 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Validate all deployment YAML files in deployments/",
     )
+    parser.add_argument("--verbose", "-v", action="store_true",
+                       help="Enable debug logging")
     return parser.parse_args()
 
 
@@ -194,20 +207,31 @@ def main() -> int:
         candidates = list_deployments()
 
     if not candidates:
-        print("[validate][error] no deployment files found", file=sys.stderr)
+        log.error("no deployment files found")
         return 1
 
+    log.info("validating deployments", count=len(candidates))
+
     exit_code = 0
+    passed = 0
+    failed = 0
+    
     for deployment_path in candidates:
+        rel_path = deployment_path.relative_to(ROOT_DIR)
         try:
             validate_deployment(deployment_path)
-            print(f"[validate][ok] {deployment_path.relative_to(ROOT_DIR)}")
+            log.info("validated", deployment=str(rel_path))
+            passed += 1
         except ValidationError as err:
-            print(f"[validate][error] {deployment_path.relative_to(ROOT_DIR)}: {err}", file=sys.stderr)
+            log.error("validation failed", deployment=str(rel_path), error=str(err))
+            failed += 1
             exit_code = 1
 
     if exit_code == 0:
-        print("[validate] OK")
+        log.info("validation complete", status="OK", passed=passed)
+    else:
+        log.error("validation complete", status="FAILED", passed=passed, failed=failed)
+    
     return exit_code
 
 

@@ -1,0 +1,16 @@
+apiVersion: drone-platform/v1
+kind: Deployment
+metadata:
+  name: full_sitl__cloud
+  description: Full SITL simulation with SITL running on cloud VM
+spec:
+  profile: profiles/full_sitl.yaml
+  topology: topologies/split_device.yaml
+  inventory: inventory/cloud.yaml
+  role_assignments:
+    gcs_host: local-laptop
+    companion_host: cloud-vm
+    sim_host: cloud-vm
+  params:
+    sitl_connection: ${SITL_CONNECTION:-tcp:127.0.0.1:5760}
+    mission: v1_takeoff_waypoint_land

@@ -1,0 +1,24 @@
+apiVersion: drone-platform/v1
+kind: Inventory
+metadata:
+  name: cloud
+  description: Cloud VM for SITL + local laptop for control
+spec:
+  devices:
+    - id: local-laptop
+      role: gcs_host
+      connection: localhost
+      capabilities:
+        - mission_management
+        - ground_control
+    - id: cloud-vm
+      role: companion_host
+      connection: ${CLOUD_VM_IP:-cloud.example.com}
+      capabilities:
+        - vehicle_adapter
+        - simulation
+    - id: cloud-vm
+      role: sim_host
+      connection: ${CLOUD_VM_IP:-cloud.example.com}
+      capabilities:
+        - ardupilot_sitl

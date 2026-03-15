@@ -1,5 +1,7 @@
-"""Vehicle adapter package."""
+"""Vehicle adapter - translates mission commands to vehicle protocols."""
 
-from .main import VehicleAdapter, VehicleCommand
+from __future__ import annotations
+
+from adapters.vehicle_adapter.main import VehicleAdapter, VehicleCommand
 
 __all__ = ["VehicleAdapter", "VehicleCommand"]
