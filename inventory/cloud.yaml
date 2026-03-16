@@ -11,13 +11,13 @@ spec:
       capabilities:
         - mission_management
         - ground_control
-    - id: cloud-vm
+    - id: cloud-vm-companion
       role: companion_host
       connection: ${CLOUD_VM_IP:-cloud.example.com}
       capabilities:
         - vehicle_adapter
         - simulation
-    - id: cloud-vm
+    - id: cloud-vm-sitl
       role: sim_host
       connection: ${CLOUD_VM_IP:-cloud.example.com}
       capabilities:

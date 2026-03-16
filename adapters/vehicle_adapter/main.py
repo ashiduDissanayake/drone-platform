@@ -54,7 +54,12 @@ class MAVLinkConnection:
         
         try:
             self._master = mavutil.mavlink_connection(self.connection_string)
-            self._master.wait_heartbeat(timeout=self.timeout)
+            heartbeat = self._master.wait_heartbeat(timeout=self.timeout)
+            if heartbeat is None:
+                log.error("did not receive HEARTBEAT within timeout")
+                self._master.close()
+                self._master = None
+                return False
             self._connected = True
             
             # Request data stream
@@ -69,7 +74,7 @@ class MAVLinkConnection:
             log.info("connected to vehicle",
                     system=self._master.target_system,
                     component=self._master.target_component,
-                    vehicle_type=mavutil.mode_string_v10(self._master.messages.get('HEARTBEAT', {})))
+                    vehicle_type=mavutil.mode_string_v10(heartbeat))
             return True
             
         except Exception as e:
@@ -222,13 +227,26 @@ class MAVLinkConnection:
             battery["voltage_v"] = msg.voltage_battery / 1000.0  # mV to V
             battery["percent"] = msg.battery_remaining
         
+        # GPS health
+        gps_ok = None
+        if 'GPS_RAW_INT' in self._master.messages:
+            gps_msg = self._master.messages['GPS_RAW_INT']
+            try:
+                fix_type = gps_msg.fix_type
+            except AttributeError:
+                fix_type = None
+            if fix_type is not None and fix_type >= 3:
+                gps_ok = True
+            else:
+                gps_ok = False
+        
         # State
         if 'HEARTBEAT' in self._master.messages:
             msg = self._master.messages['HEARTBEAT']
             state["armed"] = msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED != 0
             state["mode"] = mavutil.mode_string_v10(msg)
             state["health_flags"] = {
-                "gps_ok": True,  # TODO: Parse GPS_RAW_INT
+                "gps_ok": gps_ok,
                 "link_ok": True,
             }
         
@@ -528,7 +546,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    import logging
     args = parse_args()
+    
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
     
     try:
         payload = json.loads(args.payload)

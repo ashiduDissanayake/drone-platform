@@ -36,7 +36,7 @@ apt-get install -y \
 
 # Install Ansible for local configuration
 echo "Installing Ansible..."
-pip3 install --user ansible
+apt-get install -y ansible
 
 # Create ansible user data directory
 mkdir -p /opt/drone-platform

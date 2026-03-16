@@ -85,7 +85,7 @@ class TaggedLogger:
         if not fields:
             return ""
         parts = []
-        for key, value in fields:
+        for key, value in fields.items():
             if isinstance(value, str) and " " in value:
                 parts.append(f'{key}="{value}"')
             else:

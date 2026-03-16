@@ -39,10 +39,10 @@
             echo "  2. Validate:   python3 ops/scripts/validate-config.py --all"
             echo "  3. Run mission: python3 -m autonomy.mission_manager --deployment deployments/full_sitl__single_device.yaml"
             echo ""
-            echo "Available commands:"
-            echo "  sitl-up    - Start ArduPilot SITL"
-            echo "  sitl-down  - Stop ArduPilot SITL"
-            echo "  sitl-logs  - View SITL logs"
+            echo "SITL management:"
+            echo "  python3 -m simulation.sitl_manager start     # Start SITL"
+            echo "  python3 -m simulation.sitl_manager stop      # Stop SITL"
+            echo "  docker compose -f infra/compose/docker-compose.sitl.yaml up    # Docker SITL"
           '';
         };
       });

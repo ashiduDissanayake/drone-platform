@@ -66,15 +66,15 @@ class SITLManager:
         
         # Set connection string
         if connection_string:
-            conn_str = connection_string
+            self.connection_string = connection_string
         elif mode in ("dronekit", "dronekit-4"):
-            conn_str = self.DRONEKIT_CONNECTION
+            self.connection_string = self.DRONEKIT_CONNECTION
         elif mode == "docker":
-            conn_str = self.DOCKER_CONNECTION
+            self.connection_string = self.DOCKER_CONNECTION
         elif mode == "local":
-            conn_str = self.LOCAL_CONNECTION
+            self.connection_string = self.LOCAL_CONNECTION
         else:
-            conn_str = self.EXTERNAL_CONNECTION
+            self.connection_string = self.EXTERNAL_CONNECTION
         
         # Docker compose file path
         if docker_compose_file:
@@ -220,8 +220,8 @@ class SITLManager:
                     "--no-rebuild",
                 ],
                 cwd=str(ardupilot_path),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             log.info("local sitl started", pid=self._process.pid)
             
@@ -338,7 +338,8 @@ def main() -> int:
     parser.add_argument("--connection", help="MAVLink connection string")
     parser.add_argument("--vehicle", default="copter", help="Vehicle type")
     parser.add_argument("--version", default="4.0", help="SITL version (e.g., 3.3, 4.0, 4.3)")
-    parser.add_argument("--wait/--no-wait", default=True, help="Wait for ready")
+    parser.add_argument("--wait", action="store_true", default=True, help="Wait for ready (default: True)")
+    parser.add_argument("--no-wait", action="store_false", dest="wait", help="Don't wait for ready")
     parser.add_argument("--timeout", type=float, default=60.0, help="Timeout in seconds")
     
     args = parser.parse_args()

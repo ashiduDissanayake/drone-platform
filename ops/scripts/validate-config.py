@@ -194,7 +194,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    import logging
     args = parse_args()
+    
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    
     candidates: list[Path] = []
 
     if args.all:

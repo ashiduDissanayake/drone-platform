@@ -15,7 +15,7 @@ Currently, connection strings, URLs, and deployment parameters are hardcoded thr
 DEFAULT_SITL_CONNECTION = "tcp:127.0.0.1:5760"
 
 # ops/scripts/test-cloud-sitl.py (current)
-master = mavutil.mavlink_connection('tcp:54.152.238.66:5760')
+master = mavutil.mavlink_connection('tcp:<SITL_IP>:5760')
 ```
 
 Problems:

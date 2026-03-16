@@ -12,7 +12,7 @@ variable "instance_type" {
   default     = "c7i-flex.large"  # Good balance of cost and performance for SITL
   
   validation {
-    condition     = can(regex("^[ct][3-7][ig]?\\.(nano|micro|small|medium|large|xlarge)", var.instance_type))
-    error_message = "Instance type should be a valid compute-optimized type (t3, c5, c6i, c7i, etc.)"
+    condition     = can(regex("^[ct][3-7][ig]?(-flex)?\\.(nano|micro|small|medium|large|xlarge|[2-9]xlarge|[1-9][0-9]xlarge)$", var.instance_type))
+    error_message = "Instance type should be a valid compute-optimized type (t3, c5, c6i, c7i, c7i-flex, etc.)"
   }
 }
