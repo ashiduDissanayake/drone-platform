@@ -1,12 +1,12 @@
 # Auto-generated AWS inventory
-# Generated: 2026-03-16T10:47:04Z
+# Generated: 2026-03-16T16:20:14Z
 
 all:
   children:
     sim_host:
       hosts:
         sitl-aws:
-          ansible_host: 3.83.48.196
+          ansible_host: 3.95.154.113
           ansible_user: ubuntu
           ansible_ssh_private_key_file: /Users/ashidudissanayake/Dev/drone-platform/infra/terraform/sitl-key.pem
           ansible_python_interpreter: /usr/bin/python3

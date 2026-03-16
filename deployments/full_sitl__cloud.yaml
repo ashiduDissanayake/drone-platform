@@ -1,3 +1,8 @@
+# Cloud SITL Deployment
+# NOTE: This file uses a placeholder IP. For auto-generated config with correct IP,
+# use: config/generated/cloud-deployment.yaml (created by ./quickstart.sh)
+# Or manually update the IP below after running Terraform.
+
 apiVersion: drone-platform/v1
 kind: Deployment
 metadata:
@@ -12,5 +17,6 @@ spec:
     companion_host: cloud-vm-companion
     sim_host: cloud-vm-sitl
   params:
-    sitl_connection: ${SITL_CONNECTION:-tcp:127.0.0.1:5760}
+    # UPDATE THIS IP after running Terraform
+    sitl_connection: tcp:REPLACE_WITH_EC2_IP:5760
     mission: v1_takeoff_waypoint_land

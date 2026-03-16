@@ -20,13 +20,29 @@ echo "  Drone Platform - Quickstart"
 echo "=========================================="
 echo ""
 
+# Track overall status
+OVERALL_STATUS=0
+
 # Step 1: Setup dev environment
 echo -e "${BLUE}[Step 1/3] Setting up development environment...${NC}"
 if [ ! -d ".venv" ]; then
-    ./ops/scripts/setup-dev-env.sh
+    if ./ops/scripts/setup-dev-env.sh; then
+        echo -e "${GREEN}✓ Dev environment setup complete${NC}"
+    else
+        echo -e "${RED}✗ Dev environment setup failed${NC}"
+        OVERALL_STATUS=1
+    fi
 else
     echo -e "${GREEN}✓ Dev environment already exists${NC}"
     echo "  (Use ./ops/scripts/setup-dev-env.sh --force to reinstall)"
+fi
+
+if [ $OVERALL_STATUS -ne 0 ]; then
+    echo ""
+    echo -e "${RED}==========================================${NC}"
+    echo -e "${RED}  Quickstart Failed${NC}"
+    echo -e "${RED}==========================================${NC}"
+    exit 1
 fi
 
 # Step 2: Check AWS credentials
@@ -36,7 +52,7 @@ echo -e "${BLUE}[Step 2/3] Checking AWS credentials...${NC}"
 source .venv/bin/activate
 
 if ! aws sts get-caller-identity &> /dev/null; then
-    echo -e "${YELLOW}⚠ AWS credentials not configured${NC}"
+    echo -e "${RED}✗ AWS credentials not configured${NC}"
     echo ""
     echo "Please configure AWS credentials:"
     echo "  aws configure"
@@ -63,9 +79,20 @@ echo -e "${BLUE}[Step 3/3] Deploying Cloud SITL...${NC}"
 echo ""
 
 cd infra/scripts
-./setup-cloud-sitl.sh
-
-echo ""
-echo "=========================================="
-echo -e "${GREEN}  Quickstart Complete!${NC}"
-echo "=========================================="
+if ./setup-cloud-sitl.sh; then
+    echo ""
+    echo -e "${GREEN}==========================================${NC}"
+    echo -e "${GREEN}  ✓ Quickstart Complete!${NC}"
+    echo -e "${GREEN}==========================================${NC}"
+    echo ""
+    exit 0
+else
+    echo ""
+    echo -e "${RED}==========================================${NC}"
+    echo -e "${RED}  ✗ Quickstart Failed${NC}"
+    echo -e "${RED}==========================================${NC}"
+    echo ""
+    echo "Check the output above for details."
+    echo ""
+    exit 1
+fi

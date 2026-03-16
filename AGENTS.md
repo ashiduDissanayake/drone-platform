@@ -26,32 +26,42 @@
 ### Dependencies
 - `pyyaml` - YAML parsing (required for validation and runtime)
 - `yamllint` - YAML linting
-- Standard Python library (dataclasses, argparse, json, datetime)
+- `pydantic-settings` - Type-safe configuration management
+- `pymavlink` - MAVLink protocol for vehicle communication
+- Standard Python library (dataclasses, argparse, json, datetime, tomllib)
 
 ## Project Structure
 
 ```
 drone-platform/
-├── adapters/           # Vehicle/world/telemetry integrations (stubs in V1)
-│   ├── telemetry_adapter/
-│   ├── vehicle_adapter/
-│   └── world_adapter/
-├── autonomy/           # Mission/business logic (stubbed in V1)
+├── adapters/           # Vehicle adapter (MAVLink integration - WORKING)
+│   └── vehicle_adapter/
+├── autonomy/           # Mission manager (WORKING)
 │   └── mission_manager/
+├── config/             # Configuration files (TOML)
+│   ├── settings.toml           # Default local config
+│   ├── settings.cloud.toml     # Cloud SITL config
+│   └── loader.py               # Config loader (planned)
 ├── deployments/        # Binds profile + topology + inventory
 ├── docs/               # Architecture docs, ADRs, onboarding guides
 │   ├── adr/            # Architecture Decision Records
 │   ├── architecture/   # Technical architecture documentation
-│   └── onboarding/     # Getting started guides
+│   ├── configuration.md        # Config management guide
+│   ├── gazebo-integration.md   # Gazebo setup (planned)
+│   ├── onboarding/     # Getting started guides
+│   └── REVIEW_TEMPLATE.md
 ├── infra/              # Infrastructure automation
 │   ├── ansible/        # Provisioning and deployment
-│   └── compose/        # Docker Compose configurations
+│   ├── compose/        # Docker Compose configurations
+│   └── terraform/      # AWS infrastructure (cloud SITL)
 ├── interfaces/         # Stable contracts between autonomy and adapters
+│   ├── config.py       # Pydantic Settings configuration
+│   └── logging.py      # Structured logging
 ├── inventory/          # Defines available physical devices
 ├── missions/           # Mission scenario definitions
 ├── ops/scripts/        # Developer bootstrap and validation scripts
 ├── profiles/           # Defines what is simulated vs real
-├── simulation/         # Simulation integration placeholders
+├── simulation/         # SITL lifecycle manager (WORKING)
 ├── topologies/         # Defines where services run by role
 └── .github/workflows/  # CI scaffolding
 ```
@@ -126,6 +136,45 @@ docker compose -f docker-compose.base.yaml -f docker-compose.full_sitl__single_d
 ```bash
 ./ops/scripts/bootstrap-dev.sh
 ```
+
+## Current Implementation Status
+
+### ✅ Working Components
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `adapters/vehicle_adapter` | ✅ Complete | MAVLink integration, all commands working |
+| `autonomy/mission_manager` | ✅ Complete | Sequential mission execution |
+| `simulation/sitl_manager` | ✅ Complete | Multi-mode SITL lifecycle |
+| `interfaces/logging` | ✅ Complete | Structured tagged logging |
+| `interfaces/config` | ✅ Complete | Pydantic Settings config management |
+| Cloud SITL (AWS) | ✅ Complete | Terraform + Ansible automation |
+| `infra/terraform` | ✅ Complete | EC2 SITL deployment |
+| `infra/ansible` | ✅ Complete | SITL provisioning |
+
+### 🚧 In Progress / Planned
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Gazebo Integration | 🚧 Planned | 3D visualization (Phase 2) |
+| Split Device Topology | 🚧 Planned | MQTT-based distributed deployment |
+| `adapters/telemetry_adapter` | ❌ Removed | Not needed for V1 |
+| `adapters/world_adapter` | ❌ Removed | Not needed for V1 |
+| Companion Hybrid Profile | ⏸️ Deferred | Real vehicle + sim world |
+
+### 🔧 Configuration (New)
+
+```bash
+# Use config file
+export DRONE_CONFIG_FILE=config/settings.cloud.toml
+python3 -m autonomy.mission_manager --deployment deployments/full_sitl__cloud.yaml
+
+# Or override with environment
+export DRONE__VEHICLE__CONNECTION_STRING="tcp:3.83.48.196:5760"
+export DRONE__VEHICLE__FORCE_ARM="true"
+```
+
+See `docs/configuration.md` for details.
 
 ## Code Style Guidelines
 

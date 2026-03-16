@@ -12,69 +12,71 @@ import time
 from pathlib import Path
 from typing import Any
 
+from interfaces.config import get_config
 from interfaces.logging import get_logger
 
 
 log = get_logger("sitl-manager")
+
+# Legacy defaults (used when config is not available)
+_DRONEKIT_CONNECTION = "tcp:127.0.0.1:5760"
+_DOCKER_CONNECTION = "tcp:127.0.0.1:5760"
+_LOCAL_CONNECTION = "udp:127.0.0.1:14550"
+_EXTERNAL_CONNECTION = "tcp:127.0.0.1:5760"
 
 
 class SITLManager:
     """Manages ArduPilot SITL lifecycle.
     
     Modes:
-    - dronekit: Use dronekit-sitl Python package (Copter 3.3 - old but easy)
-    - dronekit-4: Use dronekit-sitl with Copter 4.0 (better EKF)
-    - docker: Use Docker Compose SITL (newest, builds from source)
     - local: Use locally installed SITL
+    - docker: Use Docker Compose SITL (newest, builds from source)
     - external: Connect to already-running SITL
     
     Usage:
-        manager = SITLManager(mode="dronekit-4")
+        manager = SITLManager(mode="docker")
         if manager.start():
             # SITL is ready, connection available at manager.connection_string
             manager.stop()
     """
     
-    # Connection strings for different modes
-    DRONEKIT_CONNECTION = "tcp:127.0.0.1:5760"  # Default dronekit-sitl
-    DOCKER_CONNECTION = "tcp:127.0.0.1:5760"    # TCP from Docker container
-    LOCAL_CONNECTION = "udp:127.0.0.1:14550"     # UDP from local SITL
-    EXTERNAL_CONNECTION = "tcp:127.0.0.1:5760"   # Default external
-    
     def __init__(
         self,
-        mode: str = "dronekit-4",
+        mode: str | None = None,
         connection_string: str | None = None,
-        vehicle_type: str = "copter",
-        version: str = "4.0",
+        vehicle_type: str | None = None,
+        version: str | None = None,
         docker_compose_file: str | None = None,
+        config=None,
     ) -> None:
         """Initialize SITL manager.
         
         Args:
-            mode: "dronekit", "dronekit-4", "docker", "local", or "external"
+            mode: "local", "docker", or "external". Uses config if None.
             connection_string: Override the default connection string
-            vehicle_type: "copter", "plane", "rover", etc.
-            version: SITL version (e.g., "3.3", "4.0", "4.3")
+            vehicle_type: "copter", "plane", "rover", etc. Uses config if None.
+            version: SITL version. Uses config if None.
             docker_compose_file: Path to docker-compose.sitl.yaml
+            config: Configuration object. Loads from file if None.
         """
-        self.mode = mode
-        self.vehicle_type = vehicle_type
-        self.version = version
+        # Load config if not provided
+        self._config = config or get_config()
+        
+        # Use config values as defaults
+        self.mode = mode or self._config.simulation.mode
+        self.vehicle_type = vehicle_type or self._config.simulation.vehicle_type
+        self.version = version or self._config.simulation.sitl_version
         self._process: subprocess.Popen | None = None
-        self._sitl_instance: Any = None  # For dronekit-sitl
         
         # Set connection string
         if connection_string:
             self.connection_string = connection_string
-        elif mode in ("dronekit", "dronekit-4"):
-            self.connection_string = self.DRONEKIT_CONNECTION
-        elif mode == "docker":
-            self.connection_string = self.DOCKER_CONNECTION
-        elif mode == "local":
-            self.connection_string = self.LOCAL_CONNECTION
+        elif self.mode == "docker":
+            self.connection_string = _DOCKER_CONNECTION
+        elif self.mode == "local":
+            self.connection_string = _LOCAL_CONNECTION
         else:
-            self.connection_string = self.EXTERNAL_CONNECTION
+            self.connection_string = _EXTERNAL_CONNECTION
         
         # Docker compose file path
         if docker_compose_file:
@@ -86,74 +88,32 @@ class SITLManager:
             )
         
         log.info("sitl manager initialized",
-                mode=mode,
-                vehicle=vehicle_type,
-                version=version,
-                connection=conn_str)
+                mode=self.mode,
+                vehicle=self.vehicle_type,
+                version=self.version,
+                connection=self.connection_string)
     
-    def start(self, wait: bool = True, timeout: float = 60.0) -> bool:
+    def start(self, wait: bool = True, timeout: float | None = None) -> bool:
         """Start SITL.
         
         Args:
             wait: Wait for SITL to be ready
-            timeout: Maximum time to wait in seconds
+            timeout: Maximum time to wait in seconds. Uses config if None.
             
         Returns:
             True if SITL started successfully
         """
-        if self.mode in ("dronekit", "dronekit-4"):
-            return self._start_dronekit(wait, timeout)
-        elif self.mode == "docker":
-            return self._start_docker(wait, timeout)
+        actual_timeout = timeout or self._config.vehicle.timeouts.connection
+        
+        if self.mode == "docker":
+            return self._start_docker(wait, actual_timeout)
         elif self.mode == "local":
-            return self._start_local(wait, timeout)
+            return self._start_local(wait, actual_timeout)
         elif self.mode == "external":
             log.info("external mode - assuming SITL already running")
-            return self._wait_for_connection(timeout) if wait else True
+            return self._wait_for_connection(actual_timeout) if wait else True
         else:
             log.error("unknown mode", mode=self.mode)
-            return False
-    
-    def _start_dronekit(self, wait: bool, timeout: float) -> bool:
-        """Start SITL using dronekit-sitl."""
-        log.info("starting dronekit-sitl", 
-                vehicle=self.vehicle_type, 
-                version=self.version)
-        
-        try:
-            from dronekit_sitl import SITL
-        except ImportError:
-            log.error("dronekit-sitl not installed. Run: pip install dronekit-sitl")
-            return False
-        
-        try:
-            # Start SITL
-            self._sitl_instance = SITL()
-            
-            # Download and start the vehicle
-            log.info("downloading SITL binary...", version=self.version)
-            self._sitl_instance.download(self.vehicle_type, self.version, verbose=True)
-            
-            # Launch without await_ready (we'll wait ourselves)
-            log.info("launching SITL...")
-            self._sitl_instance.launch(
-                ["--model", "quad", "--home", "-35.363261,149.165230,584,353"],
-                verbose=True,
-                await_ready=False,
-                restart=True,
-            )
-            
-            # Get connection string
-            self.connection_string = self._sitl_instance.connection_string()
-            
-            log.info("dronekit-sitl started", connection=self.connection_string)
-            
-            if wait:
-                return self._wait_for_connection(timeout)
-            return True
-            
-        except Exception as e:
-            log.error("failed to start dronekit-sitl", error=str(e))
             return False
     
     def _start_docker(self, wait: bool, timeout: float) -> bool:
@@ -264,20 +224,10 @@ class SITLManager:
         Returns:
             True if stopped successfully
         """
-        if self.mode in ("dronekit", "dronekit-4") and self._sitl_instance:
-            return self._stop_dronekit()
-        elif self.mode == "docker":
+        if self.mode == "docker":
             return self._stop_docker()
         elif self.mode == "local" and self._process:
             return self._stop_local()
-        return True
-    
-    def _stop_dronekit(self) -> bool:
-        """Stop dronekit-sitl."""
-        if self._sitl_instance:
-            log.info("stopping dronekit-sitl")
-            self._sitl_instance.stop()
-            log.info("dronekit-sitl stopped")
         return True
     
     def _stop_docker(self) -> bool:
@@ -309,9 +259,7 @@ class SITLManager:
     
     def is_running(self) -> bool:
         """Check if SITL is running."""
-        if self.mode in ("dronekit", "dronekit-4") and self._sitl_instance:
-            return True
-        elif self.mode == "docker":
+        if self.mode == "docker":
             try:
                 result = subprocess.run(
                     ["docker", "compose", "-f", str(self._compose_file), "ps", "-q"],
@@ -333,8 +281,8 @@ def main() -> int:
     
     parser = argparse.ArgumentParser(description="Manage ArduPilot SITL")
     parser.add_argument("command", choices=["start", "stop", "status"])
-    parser.add_argument("--mode", default="dronekit-4", 
-                       choices=["dronekit", "dronekit-4", "docker", "local", "external"])
+    parser.add_argument("--mode", default="docker", 
+                       choices=["docker", "local", "external"])
     parser.add_argument("--connection", help="MAVLink connection string")
     parser.add_argument("--vehicle", default="copter", help="Vehicle type")
     parser.add_argument("--version", default="4.0", help="SITL version (e.g., 3.3, 4.0, 4.3)")

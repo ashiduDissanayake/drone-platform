@@ -19,3 +19,10 @@ __pycache__/
 # Build artifacts
 build/
 dist/
+
+# Generated configs
+config/generated/
+
+# Local environment
+.env
+config/settings.local.toml

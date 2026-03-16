@@ -15,6 +15,7 @@ except ImportError as exc:  # pragma: no cover - bootstrap environment guard
     raise SystemExit(2) from exc
 
 from adapters.vehicle_adapter import VehicleAdapter, VehicleCommand
+from interfaces.config import get_config
 from interfaces.logging import get_logger
 
 
@@ -130,17 +131,27 @@ def main() -> int:
     args = parse_args()
     deployment_path = ROOT_DIR / args.deployment
     
+    # Load configuration
+    config = get_config()
+    
     sitl_manager = None
     
-    log.info("starting", deployment=args.deployment, backend=args.vehicle_backend)
+    # Use backend from args or config
+    backend = args.vehicle_backend or config.vehicle.backend
+    
+    log.info("starting", deployment=args.deployment, backend=backend)
 
     # Auto-start SITL if requested
-    if args.start_sitl and args.vehicle_backend == "ardupilot_sitl":
+    if args.start_sitl and backend == "ardupilot_sitl":
         try:
             from simulation.sitl_manager import SITLManager
-            # Use dronekit with Copter 3.3 (latest available for download)
-            sitl_manager = SITLManager(mode="dronekit", version="3.3")
-            if not sitl_manager.start(wait=True, timeout=60.0):
+            # Use config values for SITL
+            sitl_manager = SITLManager(
+                mode=config.simulation.mode,
+                version=config.simulation.sitl_version,
+                vehicle_type=config.simulation.vehicle_type,
+            )
+            if not sitl_manager.start(wait=True, timeout=config.vehicle.timeouts.connection):
                 log.error("failed to start SITL")
                 return 1
             log.info("SITL started automatically")
@@ -174,33 +185,45 @@ def main() -> int:
         log.info("topology", ref=topology_ref)
 
     # Create adapter with appropriate connection
+    # Priority: CLI arg > deployment params > config > default
     connection_string = args.connection
     
-    # If no command-line connection, check deployment params
     if not connection_string:
         deployment_params = deployment.get("spec", {}).get("params", {})
         connection_string = deployment_params.get("sitl_connection")
         if connection_string:
             log.info("using connection from deployment config", connection=connection_string)
     
-    if args.vehicle_backend == "ardupilot_sitl" and not connection_string and sitl_manager:
+    if not connection_string and sitl_manager:
         connection_string = sitl_manager.connection_string
-    elif args.vehicle_backend == "ardupilot_sitl" and not connection_string:
-        connection_string = "tcp:127.0.0.1:5760"
+    
+    if not connection_string and backend == "ardupilot_sitl":
+        connection_string = config.vehicle.connection_string
+        log.info("using connection from config", connection=connection_string)
     
     adapter = VehicleAdapter(
-        backend=args.vehicle_backend,
+        backend=backend,
         connection_string=connection_string,
         auto_connect=True,
+        config=config,
     )
     log.info("adapter initialized", 
-             backend=args.vehicle_backend,
+             backend=backend,
              connection=connection_string or "default")
 
     # Wait for vehicle ready before first command
-    if not args.no_wait_ready and args.vehicle_backend != "stub":
+    if not args.no_wait_ready and backend != "stub":
+        # Check if connected first
+        if not adapter.is_connected():
+            log.error("not connected to vehicle - cannot proceed")
+            adapter.disconnect()
+            if sitl_manager:
+                sitl_manager.stop()
+            return 1
+        
         log.info("waiting for vehicle ready (GPS, EKF)...")
-        if not adapter.wait_for_ready(timeout=args.wait_timeout):
+        wait_timeout = args.wait_timeout or config.vehicle.timeouts.connection
+        if not adapter.wait_for_ready(timeout=wait_timeout):
             log.error("vehicle not ready within timeout")
             adapter.disconnect()
             if sitl_manager:
@@ -208,7 +231,9 @@ def main() -> int:
             return 1
 
     # Apply force arm if requested (modify the arm command)
-    if args.force_arm:
+    # Use CLI arg, or config value
+    force_arm = args.force_arm or config.vehicle.force_arm
+    if force_arm:
         for cmd in commands:
             if cmd.name == "arm":
                 cmd.payload["force"] = True

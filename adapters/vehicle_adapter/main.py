@@ -13,14 +13,15 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from interfaces.config import get_config
 from interfaces.logging import get_logger
 
 
 log = get_logger("vehicle-adapter")
 
-# Default MAVLink connection strings
-DEFAULT_SITL_CONNECTION = "tcp:127.0.0.1:5760"
-DEFAULT_SERIAL_CONNECTION = "/dev/ttyACM0"
+# Legacy defaults (used only when config is not available)
+_FALLBACK_SITL_CONNECTION = "tcp:127.0.0.1:5760"
+_FALLBACK_SERIAL_CONNECTION = "/dev/ttyACM0"
 
 
 @dataclass
@@ -465,30 +466,38 @@ class VehicleAdapter:
 
     def __init__(
         self,
-        backend: str = "ardupilot_sitl",
+        backend: str | None = None,
         connection_string: str | None = None,
         auto_connect: bool = True,
+        config = None,
     ) -> None:
-        self.backend = backend
+        # Load config if not provided
+        self._config = config or get_config()
+        
+        # Determine backend (arg > config > default)
+        self.backend = backend or self._config.vehicle.backend
         self._connection: MAVLinkConnection | None = None
         
         # Determine connection string
         if connection_string:
             conn_str = connection_string
-        elif backend == "ardupilot_sitl":
-            conn_str = DEFAULT_SITL_CONNECTION
-        elif backend == "ardupilot_serial":
-            conn_str = DEFAULT_SERIAL_CONNECTION
+        elif self.backend == "ardupilot_sitl":
+            conn_str = self._config.vehicle.connection_string
+        elif self.backend == "ardupilot_serial":
+            conn_str = _FALLBACK_SERIAL_CONNECTION
         else:
             conn_str = ""
         
-        if backend != "stub" and conn_str:
-            self._connection = MAVLinkConnection(conn_str)
+        if self.backend != "stub" and conn_str:
+            self._connection = MAVLinkConnection(
+                conn_str,
+                timeout=self._config.vehicle.timeouts.connection
+            )
         
         if auto_connect and self._connection:
             self._connect()
         
-        log.info("adapter created", backend=backend, connection=conn_str or "none")
+        log.info("adapter created", backend=self.backend, connection=conn_str or "none")
 
     def _connect(self) -> bool:
         """Connect to vehicle."""
@@ -496,10 +505,23 @@ class VehicleAdapter:
             return self._connection.connect()
         return True
     
-    def wait_for_ready(self, timeout: float = 60.0) -> bool:
-        """Wait for vehicle to be ready for flight."""
+    def is_connected(self) -> bool:
+        """Check if vehicle is connected."""
+        return self._connection is not None and self._connection._connected
+    
+    def wait_for_ready(self, timeout: float | None = None) -> bool:
+        """Wait for vehicle to be ready for flight.
+        
+        Args:
+            timeout: Override timeout in seconds. Uses config default if None.
+        """
+        if not self.is_connected():
+            log.error("cannot wait for ready - not connected")
+            return False
+        
         if self._connection:
-            return self._connection.wait_for_ready(timeout=timeout)
+            actual_timeout = timeout or self._config.vehicle.timeouts.connection
+            return self._connection.wait_for_ready(timeout=actual_timeout)
         return True
     
     def check_preflight(self) -> dict[str, Any]:

@@ -23,6 +23,11 @@
         update_cache: yes
       become: yes
 
+    - name: Ensure python symlink exists
+      command: update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+      become: yes
+      changed_when: false
+
     - name: Install Python packages for SITL
       pip:
         name:
@@ -31,47 +36,55 @@
           - pymavlink
           - pyserial
           - pexpect
+          - empy
+          - pexpect
         executable: pip3
       become: yes
 
     - name: Check if ArduPilot is already cloned
       stat:
-        path: "{{ ansible_env.HOME }}/ardupilot"
+        path: "{{ ansible_facts['env']['HOME'] }}/ardupilot"
       register: ardupilot_dir
 
     - name: Clone ArduPilot repository
       git:
         repo: https://github.com/ArduPilot/ardupilot.git
-        dest: "{{ ansible_env.HOME }}/ardupilot"
+        dest: "{{ ansible_facts['env']['HOME'] }}/ardupilot"
         depth: 1
         recursive: yes
         version: Copter-4.4
       when: not ardupilot_dir.stat.exists
       register: git_clone
 
-    - name: Install ArduPilot Python dependencies
-      pip:
-        requirements: "{{ ansible_env.HOME }}/ardupilot/Tools/environment_install/requirements.txt"
-        executable: pip3
-      ignore_errors: yes
+    - name: Verify ArduPilot was cloned
+      stat:
+        path: "{{ ansible_facts['env']['HOME'] }}/ardupilot/waf"
+      register: ardupilot_waf
+      failed_when: not ardupilot_waf.stat.exists
 
     - name: Configure waf build
       command: ./waf configure --board sitl
       args:
-        chdir: "{{ ansible_env.HOME }}/ardupilot"
+        chdir: "{{ ansible_facts['env']['HOME'] }}/ardupilot"
       register: waf_configure
       changed_when: "'Setting board to' in waf_configure.stdout"
 
     - name: Build ArduCopter SITL
       command: ./waf copter
       args:
-        chdir: "{{ ansible_env.HOME }}/ardupilot"
+        chdir: "{{ ansible_facts['env']['HOME'] }}/ardupilot"
       register: waf_build
       changed_when: "waf_build.rc == 0"
 
+    - name: Verify SITL binary exists
+      stat:
+        path: "{{ ansible_facts['env']['HOME'] }}/ardupilot/build/sitl/bin/arducopter"
+      register: sitl_binary
+      failed_when: not sitl_binary.stat.exists
+
     - name: Create SITL start script
       copy:
-        dest: "{{ ansible_env.HOME }}/start-sitl.sh"
+        dest: "{{ ansible_facts['env']['HOME'] }}/start-sitl.sh"
         content: |
           #!/bin/bash
           # Start ArduPilot SITL with public TCP access
@@ -128,7 +141,50 @@
         state: started
       become: yes
 
+    - name: Wait for SITL to be ready
+      wait_for:
+        host: 0.0.0.0
+        port: 5760
+        timeout: 30
+        state: started
+
+    - name: Verify SITL is responding
+      shell: |
+        echo "Waiting for SITL to accept MAVLink connections..."
+        for i in {1..10}; do
+          if nc -z localhost 5760; then
+            echo "SITL port is open"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "SITL port did not open"
+        exit 1
+      register: sitl_health
+      changed_when: false
+
   rescue:
-    - name: Simulator setup failed
+    - name: Simulator setup failed - collecting debug info
       debug:
-        msg: "Simulator role failed. Check logs above."
+        msg: |
+          ===========================================
+          SITL SETUP FAILED
+          ===========================================
+          
+          Common causes:
+          1. Build failed (check disk space with 'df -h')
+          2. Missing dependencies
+          3. Network issues during clone
+          
+          Debug commands to run on the EC2 instance:
+            ssh -i {{ ansible_ssh_private_key_file }} ubuntu@{{ inventory_hostname }}
+            cd ~/ardupilot && ./waf configure --board sitl
+            cd ~/ardupilot && ./waf copter
+            ls -la ~/ardupilot/build/sitl/bin/
+            sudo systemctl status ardupilot-sitl
+          
+          ===========================================
+
+    - name: Fail the play
+      fail:
+        msg: "SITL setup failed. See debug output above."

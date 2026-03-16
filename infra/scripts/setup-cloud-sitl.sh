@@ -1,5 +1,5 @@
 #!/bin/bash
-# Complete cloud SITL setup pipeline
+# Complete cloud SITL setup pipeline with proper error handling
 # Usage: ./setup-cloud-sitl.sh
 
 set -e
@@ -12,17 +12,47 @@ echo "=========================================="
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Track step results
+declare -A STEP_STATUS
+declare -A STEP_MESSAGES
+
+current_step=0
+total_steps=8
+
+log_step() {
+    current_step=$((current_step + 1))
+    echo ""
+    echo -e "${BLUE}[${current_step}/${total_steps}] $1${NC}"
+}
+
+mark_success() {
+    STEP_STATUS[$1]="SUCCESS"
+    STEP_MESSAGES[$1]="$2"
+    echo -e "${GREEN}✓ $2${NC}"
+}
+
+mark_failed() {
+    STEP_STATUS[$1]="FAILED"
+    STEP_MESSAGES[$1]="$2"
+    echo -e "${RED}✗ $2${NC}"
+}
+
+mark_warning() {
+    STEP_STATUS[$1]="WARNING"
+    STEP_MESSAGES[$1]="$2"
+    echo -e "${YELLOW}⚠ $2${NC}"
+}
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-# Step 1: Clean up any leftover resources from previous failed runs
-echo ""
-echo -e "${YELLOW}[1/7] Cleaning up any leftover resources...${NC}"
+# Step 1: Clean up
+log_step "Cleaning up any leftover resources..."
 cd infra/terraform
 
-# Clean up old key pairs that might conflict
 CURRENT_DATE=$(date +%Y%m%d)
 aws ec2 describe-key-pairs --query "KeyPairs[?contains(KeyName, 'drone-platform-sitl-${CURRENT_DATE}')].[KeyName]" --output text 2>/dev/null | while read -r key_name; do
     if [ -n "$key_name" ]; then
@@ -31,51 +61,44 @@ aws ec2 describe-key-pairs --query "KeyPairs[?contains(KeyName, 'drone-platform-
     fi
 done
 
-# Clean up local Terraform files if they exist (fresh start)
 if [ -f "terraform.tfstate" ]; then
     echo "  Found existing Terraform state, cleaning up..."
-    # Try to destroy existing infrastructure gracefully
     terraform destroy -auto-approve 2>/dev/null || true
-    # Remove state files for fresh start
     rm -f terraform.tfstate terraform.tfstate.backup .terraform.lock.hcl
     rm -rf .terraform
     echo "  ✓ Cleaned up existing state"
 fi
 
-# Remove old SSH key file if it exists
 if [ -f "sitl-key.pem" ]; then
-    echo "  Removing old SSH key file..."
     rm -f sitl-key.pem
 fi
 
-echo -e "${GREEN}✓ Cleanup complete${NC}"
+mark_success "cleanup" "Cleanup complete"
 
 # Step 2: Terraform Apply
-echo ""
-echo -e "${YELLOW}[2/7] Creating infrastructure with Terraform...${NC}"
+log_step "Creating infrastructure with Terraform..."
 
 if ! command -v terraform &> /dev/null; then
-    echo -e "${RED}Error: terraform is not installed${NC}"
-    echo "Install from: https://developer.hashicorp.com/terraform/downloads"
+    mark_failed "terraform" "terraform is not installed"
     exit 1
 fi
 
 terraform init
-terraform apply -auto-approve
+if terraform apply -auto-approve; then
+    SITL_IP=$(terraform output -raw sitl_public_ip)
+    SSH_KEY="${REPO_ROOT}/infra/terraform/sitl-key.pem"
+    mark_success "infrastructure" "Infrastructure created (IP: ${SITL_IP})"
+else
+    mark_failed "infrastructure" "Terraform apply failed"
+    exit 1
+fi
 
 # Get outputs
 SITL_IP=$(terraform output -raw sitl_public_ip)
 SSH_KEY="${REPO_ROOT}/infra/terraform/sitl-key.pem"
 
-echo -e "${GREEN}✓ Infrastructure created${NC}"
-echo ""
-echo "  Note: If this script fails, run ./cleanup-failed.sh to stop AWS charges"
-echo "  SITL IP: ${SITL_IP}"
-echo "  SSH Key: ${SSH_KEY}"
-
 # Step 3: Generate Config
-echo ""
-echo -e "${YELLOW}[3/7] Generating deployment config...${NC}"
+log_step "Generating deployment config..."
 cd "$REPO_ROOT"
 
 mkdir -p config/generated
@@ -105,12 +128,10 @@ spec:
     generated: true
 EOF
 
-echo -e "${GREEN}✓ Config generated${NC}"
-echo "  File: config/generated/cloud-deployment.yaml"
+mark_success "config" "Config generated (config/generated/cloud-deployment.yaml)"
 
 # Step 4: Update Ansible Inventory
-echo ""
-echo -e "${YELLOW}[4/7] Updating Ansible inventory...${NC}"
+log_step "Updating Ansible inventory..."
 
 cat > infra/ansible/inventory/aws-generated.yml << EOF
 # Auto-generated AWS inventory
@@ -128,98 +149,174 @@ all:
           ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
 EOF
 
-echo -e "${GREEN}✓ Ansible inventory updated${NC}"
+mark_success "inventory" "Ansible inventory updated"
 
-# Step 5: Update Security Group with current IP
-echo ""
-echo -e "${YELLOW}[5/7] Updating Security Group with current IP...${NC}"
-"${REPO_ROOT}/infra/scripts/update-sg-ip.sh" || echo "  (Continuing anyway...)"
+# Step 5: Update Security Group
+log_step "Updating Security Group with current IP..."
+if "${REPO_ROOT}/infra/scripts/update-sg-ip.sh" 2>/dev/null; then
+    mark_success "security_group" "Security Group updated"
+else
+    mark_warning "security_group" "Security Group update failed (may still work)"
+fi
 
-# Step 6: Wait for EC2 to be ready
-echo ""
-echo -e "${YELLOW}[6/7] Waiting for EC2 to be ready...${NC}"
+# Step 6: Wait for EC2
+log_step "Waiting for EC2 to be ready..."
 echo "  (This may take 2-5 minutes for cloud-init to complete)"
 echo "  Checking SSH connection to ${SITL_IP}..."
 
-sleep 15  # Initial wait for SSH to come up
+sleep 15
 
 READY=false
 for i in {1..60}; do
     if ssh -i "${SSH_KEY}" -o ConnectTimeout=5 -o StrictHostKeyChecking=no ubuntu@${SITL_IP} "echo 'ready'" 2>/dev/null | grep -q "ready"; then
         READY=true
-        echo ""
-        echo -e "${GREEN}✓ EC2 is ready${NC}"
         break
     fi
     echo -n "."
     sleep 5
 done
 
-if [ "$READY" = false ]; then
-    echo ""
-    echo -e "${YELLOW}⚠ Timeout waiting for EC2, but it may still be ready${NC}"
-    echo "  Continuing anyway..."
+if [ "$READY" = true ]; then
+    mark_success "ec2_ready" "EC2 is ready"
+else
+    mark_failed "ec2_ready" "EC2 SSH timeout"
+    EXIT_EARLY=true
 fi
 
 # Step 7: Run Ansible
-echo ""
-echo -e "${YELLOW}[7/7] Configuring SITL with Ansible...${NC}"
-cd "$REPO_ROOT/infra/ansible"
+log_step "Configuring SITL with Ansible..."
 
 if ! command -v ansible-playbook &> /dev/null; then
-    echo -e "${YELLOW}Warning: ansible-playbook not found, skipping Ansible setup${NC}"
-    echo "  Install with: pip install ansible"
-    echo "  Or manually configure SITL on the instance"
+    mark_failed "ansible" "ansible-playbook not found"
+    EXIT_EARLY=true
 else
-    if ! ansible-playbook -i inventory/aws-generated.yml site.yml; then
-        echo ""
-        echo -e "${RED}==========================================${NC}"
-        echo -e "${RED}  Ansible configuration FAILED${NC}"
-        echo -e "${RED}==========================================${NC}"
-        echo ""
-        echo -e "${YELLOW}The EC2 instance is still running.${NC}"
-        echo "You have 3 options:"
-        echo ""
-        echo "  1. Retry Ansible (fix issue and retry):"
-        echo "     cd infra/ansible && ansible-playbook -i inventory/aws-generated.yml site.yml"
-        echo ""
-        echo "  2. SSH to instance and debug manually:"
-        echo "     ssh -i ${SSH_KEY} ubuntu@${SITL_IP}"
-        echo ""
-        echo "  3. Destroy infrastructure (stop charges):"
-        echo "     cd infra/terraform && terraform destroy"
-        echo ""
-        exit 1
+    cd "$REPO_ROOT/infra/ansible"
+    if ansible-playbook -i inventory/aws-generated.yml site.yml; then
+        mark_success "ansible" "Ansible configuration complete"
+    else
+        mark_failed "ansible" "Ansible configuration failed"
+        EXIT_EARLY=true
     fi
-    echo -e "${GREEN}✓ Ansible configuration complete${NC}"
 fi
 
-# Summary
+# Step 8: Verify SITL is running
+log_step "Verifying SITL is running..."
+
+if [ -z "$EXIT_EARLY" ]; then
+    sleep 5  # Give SITL time to start
+    
+    if ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ubuntu@${SITL_IP} "sudo systemctl is-active ardupilot-sitl" 2>/dev/null | grep -q "active"; then
+        # Test MAVLink connection
+        if python3 -c "
+import sys
+sys.path.insert(0, '${REPO_ROOT}')
+from pymavlink import mavutil
+import time
+try:
+    master = mavutil.mavlink_connection('tcp:${SITL_IP}:5760', timeout=5)
+    master.wait_heartbeat(timeout=5)
+    print('MAVLink OK')
+    master.close()
+except Exception as e:
+    print(f'Failed: {e}')
+    sys.exit(1)
+" 2>/dev/null | grep -q "MAVLink OK"; then
+            mark_success "sitl_verify" "SITL is running and accepting MAVLink connections"
+        else
+            mark_warning "sitl_verify" "SITL service running but MAVLink not responding"
+        fi
+    else
+        mark_failed "sitl_verify" "SITL service is not running"
+    fi
+else
+    mark_failed "sitl_verify" "Skipped (previous failures)"
+fi
+
+# Final Summary
 echo ""
 echo "=========================================="
-echo -e "${GREEN}  Cloud SITL Setup Complete!${NC}"
+echo "  SETUP SUMMARY"
 echo "=========================================="
 echo ""
-echo "Connection Details:"
-echo "  MAVLink: tcp://${SITL_IP}:5760"
-echo "  SSH:     ssh -i ${SSH_KEY} ubuntu@${SITL_IP}"
+
+# Count results
+SUCCESS_COUNT=0
+FAILED_COUNT=0
+WARNING_COUNT=0
+
+for step in cleanup infrastructure config inventory security_group ec2_ready ansible sitl_verify; do
+    status="${STEP_STATUS[$step]:-SKIPPED}"
+    message="${STEP_MESSAGES[$step]:-No message}"
+    
+    case $status in
+        SUCCESS)
+            echo -e "${GREEN}✓${NC} ${step}: ${message}"
+            SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            ;;
+        FAILED)
+            echo -e "${RED}✗${NC} ${step}: ${message}"
+            FAILED_COUNT=$((FAILED_COUNT + 1))
+            ;;
+        WARNING)
+            echo -e "${YELLOW}⚠${NC} ${step}: ${message}"
+            WARNING_COUNT=$((WARNING_COUNT + 1))
+            ;;
+        *)
+            echo -e "  ${step}: ${status}"
+            ;;
+    esac
+done
+
 echo ""
-echo "Generated Files:"
-echo "  Config:    config/generated/cloud-deployment.yaml"
-echo "  Inventory: infra/ansible/inventory/aws-generated.yml"
+echo "------------------------------------------"
+echo -e "Results: ${GREEN}${SUCCESS_COUNT} succeeded${NC}, ${RED}${FAILED_COUNT} failed${NC}, ${YELLOW}${WARNING_COUNT} warnings${NC}"
+echo "------------------------------------------"
 echo ""
-echo "Usage Examples:"
-echo "  # Using mission manager:"
-echo "  python3 -m autonomy.mission_manager --deployment config/generated/cloud-deployment.yaml"
-echo ""
-echo "  # Using vehicle adapter directly:"
-echo "  python3 -m adapters.vehicle_adapter \\"
-echo "    --connection tcp:${SITL_IP}:5760 \\"
-echo "    --command arm"
-echo ""
-echo "  # Using MAVProxy:"
-echo "  mavproxy.py --master=tcp:${SITL_IP}:5760"
-echo ""
-echo "To destroy infrastructure:"
-echo "  cd infra/terraform && terraform destroy"
-echo ""
+
+# Connection info (if available)
+if [ -n "$SITL_IP" ]; then
+    echo "Connection Details:"
+    echo "  MAVLink: tcp://${SITL_IP}:5760"
+    echo "  SSH:     ssh -i ${SSH_KEY} ubuntu@${SITL_IP}"
+    echo ""
+fi
+
+# Final status and next steps
+if [ "$FAILED_COUNT" -eq 0 ] && [ "$WARNING_COUNT" -eq 0 ]; then
+    echo -e "${GREEN}==========================================${NC}"
+    echo -e "${GREEN}  ✓ SETUP COMPLETE - ALL CHECKS PASSED${NC}"
+    echo -e "${GREEN}==========================================${NC}"
+    echo ""
+    echo "Usage:"
+    echo "  python3 -m autonomy.mission_manager --deployment config/generated/cloud-deployment.yaml"
+    echo ""
+    exit 0
+elif [ "$FAILED_COUNT" -eq 0 ]; then
+    echo -e "${YELLOW}==========================================${NC}"
+    echo -e "${YELLOW}  ⚠ SETUP COMPLETE WITH WARNINGS${NC}"
+    echo -e "${YELLOW}==========================================${NC}"
+    echo ""
+    echo "You may be able to proceed, but check the warnings above."
+    echo ""
+    exit 0
+else
+    echo -e "${RED}==========================================${NC}"
+    echo -e "${RED}  ✗ SETUP FAILED - ACTION REQUIRED${NC}"
+    echo -e "${RED}==========================================${NC}"
+    echo ""
+    echo "The EC2 instance is still running and incurring charges."
+    echo ""
+    echo "Next steps:"
+    echo ""
+    echo "  1. Fix and retry Ansible:"
+    echo "     cd infra/ansible"
+    echo "     ansible-playbook -i inventory/aws-generated.yml site.yml"
+    echo ""
+    echo "  2. SSH to debug:"
+    echo "     ssh -i ${SSH_KEY} ubuntu@${SITL_IP}"
+    echo ""
+    echo "  3. Destroy to stop charges:"
+    echo "     cd infra/terraform && terraform destroy"
+    echo ""
+    exit 1
+fi
