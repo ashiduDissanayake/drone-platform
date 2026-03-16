@@ -42,37 +42,67 @@ V1 focus:
 
 ## Quick Start
 
-### 1. Enter Development Shell
+### Option 1: One-Command Cloud SITL (Recommended)
 
-Using Nix (recommended):
+Deploy ArduPilot SITL on AWS with one command:
+
+```bash
+# Clone and enter repository
+git clone <repo-url>
+cd drone-platform
+
+# One command sets up everything:
+# - Dev environment (Python, Terraform, Ansible)
+# - AWS infrastructure (EC2 instance)
+# - ArduPilot SITL (built and running)
+./quickstart.sh
+```
+
+**Requirements:**
+- AWS account with credentials (`aws configure`)
+- macOS or Linux
+
+**What happens:**
+1. Installs dependencies (Terraform, Ansible, Python packages)
+2. Creates EC2 instance with security group
+3. Builds ArduPilot SITL on the cloud instance
+4. Generates config with dynamic IP
+5. Shows you how to connect
+
+### Option 2: Local Development (Nix)
+
+Using Nix (fully reproducible environment):
 ```bash
 nix --extra-experimental-features "nix-command flakes" develop
-```
 
-Or Python venv:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install pyyaml pymavlink pyserial
-```
-
-### 2. Start ArduPilot SITL
-
-```bash
+# Start local SITL
 ./ops/scripts/sitl.sh start
-```
 
-Wait for "SITL is ready!" message.
-
-### 3. Run a Mission
-
-```bash
+# Run mission
 python3 -m autonomy.mission_manager \
   --deployment deployments/full_sitl__single_device.yaml \
   --vehicle-backend ardupilot_sitl
 ```
 
-You'll see tagged log output:
+### Option 3: Local Development (Manual)
+
+```bash
+# Setup dev environment
+./setup-dev-env.sh
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Start local SITL
+./ops/scripts/sitl.sh start
+
+# Run mission
+python3 -m autonomy.mission_manager \
+  --deployment deployments/full_sitl__single_device.yaml \
+  --vehicle-backend ardupilot_sitl
+```
+
+**Log output:**
 ```
 [14:17:26.123] [mission-manager] [INFO] starting deployment=... backend=ardupilot_sitl
 [14:17:26.456] [vehicle-adapter] [INFO] connected to vehicle system=1 component=1
@@ -82,8 +112,51 @@ You'll see tagged log output:
 
 ### 4. Stop SITL
 
+Local:
 ```bash
 ./ops/scripts/sitl.sh stop
+```
+
+Cloud (Terraform):
+```bash
+cd infra/terraform
+terraform destroy
+```
+
+---
+
+## Reproducible Workspace
+
+This project uses a **workspace pattern** for reproducibility:
+
+### First Time Setup
+```bash
+./setup-dev-env.sh        # Installs all dependencies (Terraform, Ansible, Python, etc.)
+                          # Creates .venv/ with isolated Python environment
+                          # Checks and installs system packages if missing
+```
+
+### Reuse Existing Workspace
+```bash
+# Just activate the existing environment
+source .venv/bin/activate
+
+# Or use the wrapper (no need to remember activate)
+./.env-activate python -m adapters.vehicle_adapter --help
+```
+
+### What's Installed (and Reused)
+
+| Component | Location | Reused? |
+|-----------|----------|---------|
+| Python packages | `.venv/` | ✅ Yes, until you delete it |
+| Terraform | System or Homebrew | ✅ Yes, if already installed |
+| Ansible | `.venv/` | ✅ Yes, part of Python venv |
+| AWS CLI | System or Homebrew | ✅ Yes, if already installed |
+
+### Force Reinstall
+```bash
+./setup-dev-env.sh --force   # Deletes and recreates everything
 ```
 
 ## Development Commands

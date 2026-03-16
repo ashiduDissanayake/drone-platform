@@ -1,8 +1,13 @@
+# Auto-generated cloud deployment config
+# Generated: 2026-03-16T10:47:04Z
+# SITL IP: 3.83.48.196
+
 apiVersion: drone-platform/v1
 kind: Deployment
 metadata:
-  name: full_sitl__cloud
-  description: Full SITL simulation with SITL running on cloud VM
+  name: cloud_sitl__generated
+  description: Auto-generated cloud SITL deployment
+generated_by: infra/scripts/setup-cloud-sitl.sh
 spec:
   profile: profiles/full_sitl.yaml
   topology: topologies/split_device.yaml
@@ -12,5 +17,6 @@ spec:
     companion_host: cloud-vm-companion
     sim_host: cloud-vm-sitl
   params:
-    sitl_connection: ${SITL_CONNECTION:-tcp:127.0.0.1:5760}
+    sitl_connection: "tcp:3.83.48.196:5760"
     mission: v1_takeoff_waypoint_land
+    generated: true

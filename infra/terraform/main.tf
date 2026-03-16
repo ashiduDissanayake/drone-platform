@@ -106,7 +106,7 @@ resource "tls_private_key" "sitl_key" {
 }
 
 resource "aws_key_pair" "sitl_key" {
-  key_name   = "drone-platform-sitl-${formatdate("YYYYMMDD", timestamp())}"
+  key_name   = "drone-platform-sitl-${formatdate("YYYYMMDD-hhmmss", timestamp())}"
   public_key = tls_private_key.sitl_key.public_key_openssh
 }
 
@@ -129,11 +129,7 @@ resource "aws_instance" "sitl" {
     volume_type = "gp3"
   }
 
-  user_data = templatefile("${path.module}/user-data.sh", {
-    ansible_inventory = templatefile("${path.module}/inventory.tpl", {
-      sitl_ip = self.public_ip
-    })
-  })
+  user_data = file("${path.module}/user-data.sh")
 
   tags = {
     Name    = "drone-platform-sitl"

@@ -175,6 +175,14 @@ def main() -> int:
 
     # Create adapter with appropriate connection
     connection_string = args.connection
+    
+    # If no command-line connection, check deployment params
+    if not connection_string:
+        deployment_params = deployment.get("spec", {}).get("params", {})
+        connection_string = deployment_params.get("sitl_connection")
+        if connection_string:
+            log.info("using connection from deployment config", connection=connection_string)
+    
     if args.vehicle_backend == "ardupilot_sitl" and not connection_string and sitl_manager:
         connection_string = sitl_manager.connection_string
     elif args.vehicle_backend == "ardupilot_sitl" and not connection_string:

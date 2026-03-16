@@ -112,7 +112,7 @@ class MAVLinkConnection:
             param1, param2, param3, param4, param5, param6, param7,
         )
     
-    def set_mode(self, mode: str) -> bool:
+    def set_mode(self, mode: str, wait: bool = True, timeout: float = 3.0) -> bool:
         """Set vehicle flight mode."""
         from pymavlink import mavutil
         
@@ -121,17 +121,63 @@ class MAVLinkConnection:
             log.error("unknown mode", mode=mode, available=list(self._master.mode_mapping().keys()))
             return False
         
-        self._master.mav.set_mode_send(
-            self._master.target_system,
-            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-            mode_id,
+        # Check if already in desired mode
+        if 'HEARTBEAT' in self._master.messages:
+            current_mode_id = self._master.messages['HEARTBEAT'].custom_mode
+            if current_mode_id == mode_id:
+                log.debug("already in mode", mode=mode)
+                return True
+        
+        # Use COMMAND_LONG with DO_SET_MODE (works better with SITL 4.8)
+        self.send_command_long(
+            mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+            param1=mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+            param2=mode_id,
         )
-        log.info("mode change requested", mode=mode)
+        log.info("mode change requested", mode=mode, mode_id=mode_id)
+        
+        if not wait:
+            return True
+        
+        # Wait for mode change to take effect (verified via HEARTBEAT)
+        start = time.time()
+        while time.time() - start < timeout:
+            msg = self._master.recv_match(blocking=False)
+            if msg and msg.get_type() == 'HEARTBEAT':
+                # Check if mode matches (custom_mode contains the mode ID)
+                if msg.custom_mode == mode_id:
+                    log.info("mode change confirmed", mode=mode)
+                    return True
+            time.sleep(0.05)
+        
+        log.warning("mode change timeout", mode=mode, waited=f"{time.time()-start:.1f}s")
+        return False
+    
+    def set_rc_override(self, channel: int, pwm: int) -> bool:
+        """Set RC channel override (for simulation)."""
+        from pymavlink import mavutil
+        
+        # Create RC_CHANNELS_OVERRIDE message
+        # Channel 3 is throttle (typically)
+        self._master.mav.rc_channels_override_send(
+            self._master.target_system,
+            self._master.target_component,
+            0, 0, pwm, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        )
+        log.info("RC override sent", channel=channel, pwm=pwm)
         return True
     
     def arm(self, force: bool = False) -> bool:
         """Arm the vehicle."""
         from pymavlink import mavutil
+        
+        # Set throttle to minimum before arming (required for SITL 4.8)
+        log.info("setting throttle to minimum for arming")
+        self.set_rc_override(3, 1000)  # Throttle channel = 1000 (minimum)
+        
+        # Small delay for RC to take effect
+        import time
+        time.sleep(0.5)
         
         self.send_command_long(
             mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
@@ -139,7 +185,44 @@ class MAVLinkConnection:
             param2=21196 if force else 0,  # Force arm
         )
         log.info("arm command sent", force=force)
-        return True
+        
+        # Clear message backlog and look for ACK or armed status
+        # SITL 4.8 sends lots of messages, ACK may be buried in queue
+        ack_result = None
+        start_time = time.time()
+        
+        while time.time() - start_time < 3.0:  # Wait up to 3 seconds
+            msg = self._master.recv_match(blocking=False)
+            if msg is None:
+                time.sleep(0.05)
+                continue
+            
+            # Check for COMMAND_ACK
+            if msg.get_type() == 'COMMAND_ACK':
+                if msg.command == mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM:
+                    ack_result = msg.result
+                    log.info("arm ACK received", result=ack_result)
+                    if ack_result != 0:
+                        log.error("arm command rejected", result=ack_result)
+                        return False
+                    # Command accepted, now wait for HEARTBEAT to confirm armed state
+                    break
+        
+        # Even if ACK was received, verify via HEARTBEAT
+        # (sometimes SITL accepts but doesn't arm immediately)
+        # Process for up to 3 seconds looking for HEARTBEAT with armed flag
+        start_check = time.time()
+        while time.time() - start_check < 3.0:
+            msg = self._master.recv_match(blocking=False)
+            if msg and msg.get_type() == 'HEARTBEAT':
+                armed = msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED != 0
+                if armed:
+                    log.info("vehicle is now ARMED")
+                    return True
+            time.sleep(0.05)
+        
+        log.error("vehicle failed to arm")
+        return False
     
     def disarm(self) -> bool:
         """Disarm the vehicle."""
@@ -469,6 +552,10 @@ class VehicleAdapter:
         
         elif cmd == "land":
             self._connection.land()
+        
+        elif cmd == "set_mode":
+            mode = payload.get("mode", "STABILIZE")
+            self._connection.set_mode(mode)
         
         else:
             log.warning("unknown command", command=cmd)
