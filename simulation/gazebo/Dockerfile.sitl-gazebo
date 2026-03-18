@@ -45,6 +45,9 @@ RUN apt-get update && apt-get install -y \
     tmux \
     && rm -rf /var/lib/apt/lists/*
 
+# Create python symlink (ArduPilot waf requires 'python' command)
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
 # Install Python dependencies
 RUN pip3 install --no-cache-dir \
     empy==3.3.4 \
