@@ -51,9 +51,8 @@ ENV GZ_SIM_MODEL_PATH=/usr/local/share/ardupilot_gazebo/models
 # Create model directories
 RUN mkdir -p /root/.gz/models /root/.gz/worlds
 
-# Copy custom worlds (optional)
-COPY worlds/ /usr/local/share/ardupilot_gazebo/worlds/ 2>/dev/null || true
-COPY models/ /usr/local/share/ardupilot_gazebo/models/ 2>/dev/null || true
+# Create directories for custom worlds/models (mounted via volumes)
+RUN mkdir -p /usr/local/share/ardupilot_gazebo/worlds /usr/local/share/ardupilot_gazebo/models
 
 # Expose Gazebo ports
 EXPOSE 9002
