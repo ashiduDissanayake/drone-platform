@@ -6,10 +6,11 @@ services:
       dockerfile: Dockerfile.gazebo
     container_name: drone-platform-gazebo
     environment:
-      - GZ_SIM_SYSTEM_PLUGIN_PATH=/usr/local/lib/gz-sim-8/plugins:/usr/lib/aarch64-linux-gnu/gz-sim-8/plugins
+      # CRITICAL: Must include /usr/local/lib/ardupilot_gazebo for ArduPilotPlugin
+      - GZ_SIM_SYSTEM_PLUGIN_PATH=/usr/local/lib/ardupilot_gazebo:/usr/local/lib/gz-sim-8/plugins:/usr/lib/aarch64-linux-gnu/gz-sim-8/plugins
       - GZ_SIM_RESOURCE_PATH=/usr/local/share/ardupilot_gazebo/worlds:/usr/share/gz/gz-sim8/worlds
       - GZ_SIM_MODEL_PATH=/usr/local/share/ardupilot_gazebo/models:/root/.gz/models
-      - LD_LIBRARY_PATH=/usr/local/lib/gz-sim-8/plugins
+      - LD_LIBRARY_PATH=/usr/local/lib/ardupilot_gazebo:/usr/local/lib
       - HOME=/root
     volumes:
       - gazebo-models:/root/.gz/models:rw

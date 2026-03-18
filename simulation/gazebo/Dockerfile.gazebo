@@ -63,12 +63,12 @@ RUN git clone --depth 1 https://github.com/ArduPilot/ardupilot_gazebo.git && \
     find /usr/local -name "*ArduPilot*" -o -name "*ardupilot*" 2>/dev/null | head -20 && \
     cd / && rm -rf /tmp/ardupilot_gazebo
 
-# Set up Gazebo environment - include all possible plugin paths
-ENV GZ_SIM_SYSTEM_PLUGIN_PATH=/usr/local/lib/gz-sim-8/plugins:/usr/lib/aarch64-linux-gnu/gz-sim-8/plugins:/usr/local/lib
+# Set up Gazebo environment - CRITICAL: Include ardupilot_gazebo plugin path
+ENV GZ_SIM_SYSTEM_PLUGIN_PATH=/usr/local/lib/ardupilot_gazebo:/usr/local/lib/gz-sim-8/plugins:/usr/lib/aarch64-linux-gnu/gz-sim-8/plugins
 ENV GZ_SIM_RESOURCE_PATH=/usr/local/share/ardupilot_gazebo/worlds:/usr/share/gz/gz-sim8/worlds
 ENV GZ_SIM_MODEL_PATH=/usr/local/share/ardupilot_gazebo/models:/root/.gz/models
 # Library path for plugins
-ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib/gz-sim-8/plugins:${LD_LIBRARY_PATH}
+ENV LD_LIBRARY_PATH=/usr/local/lib/ardupilot_gazebo:/usr/local/lib:${LD_LIBRARY_PATH}
 
 # Create model directories
 RUN mkdir -p /root/.gz/models /root/.gz/worlds
