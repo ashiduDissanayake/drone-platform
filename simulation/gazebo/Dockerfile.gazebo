@@ -1,0 +1,62 @@
+# Gazebo Harmonic with ardupilot_gazebo plugin
+# Provides 3D visualization and physics for ArduPilot SITL
+
+FROM ubuntu:22.04
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Gazebo Harmonic dependencies
+RUN apt-get update && apt-get install -y \
+    # Core build tools
+    build-essential \
+    cmake \
+    git \
+    wget \
+    curl \
+    python3 \
+    python3-pip \
+    # Gazebo Harmonic
+    gz-harmonic \
+    # Additional dependencies for ardupilot_gazebo
+    libgz-sim8-dev \
+    libgz-math7-dev \
+    libgz-transport13-dev \
+    libgz-msgs10-dev \
+    libgz-common5-dev \
+    libgz-plugin2-dev \
+    libsdformat14-dev \
+    # X11 for GUI (optional)
+    libx11-6 \
+    libxext6 \
+    libgl1-mesa-glx \
+    libgl1-mesa-dri \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build and install ardupilot_gazebo plugin
+WORKDIR /tmp
+RUN git clone --depth 1 https://github.com/ArduPilot/ardupilot_gazebo.git && \
+    cd ardupilot_gazebo && \
+    mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc) && \
+    make install && \
+    cd / && rm -rf /tmp/ardupilot_gazebo
+
+# Set up Gazebo environment
+ENV GZ_SIM_SYSTEM_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins:/usr/local/lib/gz-sim/plugins
+ENV GZ_SIM_RESOURCE_PATH=/usr/share/gz/gz-sim8/worlds:/usr/local/share/ardupilot_gazebo/worlds
+ENV GZ_SIM_MODEL_PATH=/usr/local/share/ardupilot_gazebo/models
+
+# Create model directories
+RUN mkdir -p /root/.gz/models /root/.gz/worlds
+
+# Copy custom worlds (optional)
+COPY worlds/ /usr/local/share/ardupilot_gazebo/worlds/ 2>/dev/null || true
+COPY models/ /usr/local/share/ardupilot_gazebo/models/ 2>/dev/null || true
+
+# Expose Gazebo ports
+EXPOSE 9002
+
+# Default command: run Gazebo with Iris model
+CMD ["gz", "sim", "-v", "4", "-r", "iris_runway.sdf"]

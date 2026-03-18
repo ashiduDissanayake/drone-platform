@@ -1,0 +1,82 @@
+# Gazebo + ArduPilot SITL Integration
+# Provides 3D visualization for drone-platform missions
+
+services:
+  # Gazebo Simulator with ardupilot_gazebo plugin
+  gazebo:
+    build:
+      context: .
+      dockerfile: Dockerfile.gazebo
+    container_name: drone-platform-gazebo
+    environment:
+      # Gazebo configuration
+      - GZ_SIM_RESOURCE_PATH=/usr/share/gz/gz-sim7:/usr/share/gz/gz-sim8
+      - GZ_VERSION=harmonic
+      # Display for GUI (optional - can run headless)
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      # For GUI display (optional)
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Persistent worlds and models
+      - gazebo-models:/root/.gz/models:rw
+      - gazebo-worlds:/root/.gz/worlds:rw
+    ports:
+      # Gazebo GUI port (optional)
+      - "9002:9002"
+    networks:
+      - gazebo-network
+    command: >
+      gz sim -v 4 -r iris_runway.sdf
+    healthcheck:
+      test: ["CMD", "gz", "service", "-l"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ArduPilot SITL connected to Gazebo
+  sitl-gazebo:
+    build:
+      context: .
+      dockerfile: Dockerfile.sitl-gazebo
+    container_name: drone-platform-sitl-gazebo
+    environment:
+      # Connect to Gazebo
+      - GAZEBO_IP=gazebo
+      - GAZEBO_PORT=9002
+      # MAVLink settings
+      - MAVLINK_TCP_PORT=5760
+      # Vehicle settings
+      - VEHICLE_TYPE=copter
+      - VEHICLE_MODEL=iris
+    ports:
+      # MAVLink TCP for mission manager
+      - "5760:5760"
+      # MAVLink UDP (optional, for QGC)
+      - "14550:14550/udp"
+    networks:
+      - gazebo-network
+    depends_on:
+      gazebo:
+        condition: service_healthy
+    command: >
+      /ardupilot/build/sitl/bin/arducopter
+      --model gazebo-iris
+      --home -35.363261,149.165230,584,353
+      --defaults /ardupilot/Tools/autotest/default_params/copter.parm
+      --serial0 tcp:0.0.0.0:5760
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "5760"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  gazebo-models:
+    driver: local
+  gazebo-worlds:
+    driver: local
+
+networks:
+  gazebo-network:
+    driver: bridge

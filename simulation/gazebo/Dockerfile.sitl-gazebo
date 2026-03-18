@@ -1,0 +1,102 @@
+# ArduPilot SITL with Gazebo support
+# Connects to Gazebo for physics simulation
+
+FROM ubuntu:22.04
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies (same as regular SITL + Gazebo deps)
+RUN apt-get update && apt-get install -y \
+    # Build tools
+    git \
+    build-essential \
+    cmake \
+    ninja-build \
+    python3 \
+    python3-pip \
+    python3-dev \
+    # ArduPilot dependencies
+    g++ \
+    gcc \
+    make \
+    # Gazebo dependencies for SITL
+    libgz-transport13-dev \
+    libgz-msgs10-dev \
+    libgz-math7-dev \
+    # MAVLink
+    netcat-openbsd \
+    # Screen for PTY
+    screen \
+    # Utilities
+    vim \
+    tmux \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir \
+    empy==3.3.4 \
+    pymavlink>=2.4.0 \
+    MAVProxy>=1.8.0 \
+    pyserial \
+    future \
+    pexpect \
+    lxml
+
+# Clone and build ArduPilot
+WORKDIR /ardupilot
+RUN git clone --depth 1 --branch Copter-4.4 \
+    https://github.com/ArduPilot/ardupilot.git . && \
+    git submodule update --init --recursive --depth 1
+
+# Configure and build SITL
+RUN ./waf configure --board sitl && \
+    ./waf copter -j$(nproc)
+
+# Create SITL runner script
+RUN cat > /run-sitl.sh << 'SITLEOF'
+#!/bin/bash
+set -e
+
+# Wait for Gazebo to be ready
+echo "Waiting for Gazebo..."
+until nc -z gazebo 9002 2>/dev/null; do
+    sleep 1
+done
+echo "Gazebo is ready!"
+
+# Start SITL with Gazebo connection
+cd /ardupilot/ArduCopter
+
+# Use screen for PTY (required by SITL)
+screen -dmS sitl bash -c '
+    export HOME=/root
+    cd /ardupilot/ArduCopter
+    exec ../build/sitl/bin/arducopter \
+        -w \
+        --model gazebo-iris \
+        --home -35.363261,149.165230,584,353 \
+        --defaults ../Tools/autotest/default_params/copter.parm \
+        --serial0 tcp:0.0.0.0:5760
+'
+
+echo "SITL started, waiting for MAVLink port..."
+for i in {1..30}; do
+    if nc -z localhost 5760 2>/dev/null; then
+        echo "MAVLink ready on tcp:0.0.0.0:5760"
+        break
+    fi
+    sleep 1
+done
+
+# Keep container running
+tail -f /dev/null
+SITLEOF
+
+RUN chmod +x /run-sitl.sh
+
+# Expose MAVLink ports
+EXPOSE 5760 14550/udp
+
+# Start SITL
+CMD ["/run-sitl.sh"]

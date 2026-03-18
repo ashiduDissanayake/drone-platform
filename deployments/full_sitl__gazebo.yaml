@@ -1,0 +1,26 @@
+apiVersion: drone-platform/v1
+kind: Deployment
+metadata:
+  name: full_sitl__gazebo
+  description: >
+    Full Software-in-the-Loop with Gazebo 3D visualization.
+    Runs Gazebo simulator with ArduPilot SITL on local machine.
+
+    Usage:
+      1. Start Gazebo: cd simulation/gazebo && docker compose up
+      2. Run mission: python3 -m autonomy.mission_manager --deployment deployments/full_sitl__gazebo.yaml
+
+    Note: Gazebo GUI requires X11 display. Run 'xhost +local:docker' first.
+spec:
+  profile: profiles/full_sitl.yaml
+  topology: topologies/single_device.yaml
+  inventory: inventory/local.yaml
+  role_assignments:
+    gcs_host: local-machine
+    sim_host: local-machine
+    companion_host: local-machine
+  params:
+    sitl_connection: "tcp:127.0.0.1:5760"
+    sitl_mode: "gazebo"
+    gazebo_world: "iris_runway"
+    mission: v1_takeoff_waypoint_land

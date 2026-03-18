@@ -1,0 +1,39 @@
+# Configuration for Gazebo SITL simulation
+# 3D visualization with Gazebo (Ignition/Gazebo Modern)
+
+[simulation]
+mode = "docker"
+vehicle_type = "copter"
+sitl_version = "4.4"
+# Use Gazebo-specific Docker Compose
+docker_compose_file = "simulation/gazebo/docker-compose.gazebo.yaml"
+
+[vehicle]
+# Connect to Gazebo SITL
+connection_string = "tcp:127.0.0.1:5760"
+backend = "ardupilot_sitl"
+# Force arm for simulation (no safety checks)
+force_arm = true
+# Timeout for commands
+timeout = 30.0
+
+[mission]
+# Default mission for Gazebo testing
+default_mission = "v1_takeoff_waypoint_land"
+# Rate limiting between commands
+command_delay = 1.0
+
+[logging]
+level = "INFO"
+# Enable detailed telemetry logging for debugging
+show_telemetry = true
+
+[gazebo]
+# Gazebo-specific settings
+world = "iris_runway"
+# Headless mode (no GUI) - set to false to see 3D visualization
+headless = false
+# Physics engine: dart (default) or bullet
+physics_engine = "dart"
+# Real-time factor (1.0 = real-time, 0.5 = half speed)
+real_time_factor = 1.0
