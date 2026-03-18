@@ -1,0 +1,38 @@
+# Simplified Gazebo Dockerfile (without OpenCV camera support)
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install basic dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add Gazebo repo
+RUN curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
+    echo "deb [arch=\$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable \$(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+
+# Install Gazebo Harmonic only (no dev packages needed for runtime)
+RUN apt-get update && apt-get install -y \
+    gz-harmonic \
+    libgz-sim8 \
+    libx11-6 \
+    libgl1-mesa-glx \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download pre-built ardupilot_gazebo plugin instead of building
+WORKDIR /tmp
+RUN curl -L -o ardupilot_gazebo_plugin.tar.gz \
+    "https://github.com/ArduPilot/ardupilot_gazebo/releases/download/v2.0.0/ardupilot_gazebo-harmonic.tar.gz" 2>/dev/null || \
+    echo "Will use system plugin"
+
+# Set up environment
+ENV GZ_SIM_RESOURCE_PATH=/usr/share/gz/gz-sim8/worlds
+ENV GZ_SIM_MODEL_PATH=/usr/share/gz/gz-sim8/models
+
+EXPOSE 9002
+
+CMD ["gz", "sim", "-v", "4", "-r", "iris_runway.sdf"]

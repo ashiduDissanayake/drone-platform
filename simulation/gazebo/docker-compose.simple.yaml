@@ -1,0 +1,23 @@
+# Simple Gazebo setup using official images
+services:
+  gazebo:
+    image: ghcr.io/ardupilot/ardupilot-gazebo-sitl:latest
+    container_name: drone-platform-gazebo
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    ports:
+      - "5760:5760"
+      - "5762:5762"
+      - "5763:5763"
+    command: >
+      bash -c "
+        cd /ardupilot &&
+        ./build/sitl/bin/arducopter -w --model gazebo-iris \\
+          --home -35.363261,149.165230,584,353 \\
+          --defaults ./Tools/autotest/default_params/copter.parm \\
+          --serial0 tcp:0.0.0.0:5760 &
+        sleep 5 &&
+        gz sim -v 4 -r /usr/share/gz/gz-sim8/worlds/iris_runway.sdf
+      "

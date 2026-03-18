@@ -1,10 +1,8 @@
 #!/bin/bash
 # Start Gazebo + ArduPilot SITL for drone-platform
-# Usage: ./start-gazebo.sh [--headless]
 
 set -e
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -14,59 +12,52 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Parse arguments
-HEADLESS=false
-if [ "$1" = "--headless" ]; then
-    HEADLESS=true
-    echo -e "${BLUE}Running in headless mode (no GUI)${NC}"
-fi
+echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}  Gazebo + ArduPilot SITL${NC}"
+echo -e "${BLUE}========================================${NC}"
+echo ""
 
-# Check if Docker is running
+# Check Docker
 if ! docker info >/dev/null 2>&1; then
     echo -e "${RED}Error: Docker is not running${NC}"
     exit 1
 fi
 
-# Setup X11 forwarding for GUI (if not headless)
-if [ "$HEADLESS" = false ]; then
-    if [ -z "$DISPLAY" ]; then
-        echo -e "${YELLOW}Warning: DISPLAY not set, running in headless mode${NC}"
-        HEADLESS=true
-    else
-        echo -e "${BLUE}Setting up X11 forwarding...${NC}"
-        xhost +local:docker 2>/dev/null || true
-    fi
+# Setup X11
+if [ -n "$DISPLAY" ]; then
+    echo -e "${BLUE}Setting up X11 forwarding...${NC}"
+    xhost +local:docker 2>/dev/null || true
 fi
 
-# Check if already running
-if docker compose -f docker-compose.gazebo.yaml ps | grep -q "gazebo\|sitl-gazebo"; then
-    echo -e "${YELLOW}Gazebo appears to be already running${NC}"
-    echo "Run 'docker compose -f docker-compose.gazebo.yaml down' first to restart"
-    exit 0
-fi
+# Stop any existing containers
+echo -e "${BLUE}Cleaning up existing containers...${NC}"
+docker compose -f docker-compose.gazebo.yaml down 2>/dev/null || true
 
-# Build and start
+# Start containers
+echo ""
 echo -e "${GREEN}Starting Gazebo + ArduPilot SITL...${NC}"
+echo -e "${YELLOW}This will take a moment to download models...${NC}"
 echo ""
 
-if [ "$HEADLESS" = true ]; then
-    # Headless mode - override command
-    echo -e "${BLUE}Starting in headless mode...${NC}"
-    docker compose -f docker-compose.gazebo.yaml up --build -d
-else
-    # GUI mode
-    docker compose -f docker-compose.gazebo.yaml up --build
-fi
+# Run in detached mode first to handle model downloads
+docker compose -f docker-compose.gazebo.yaml up -d
 
 echo ""
-echo -e "${GREEN}✓ Gazebo + SITL started${NC}"
+echo -e "${GREEN}✓ Containers started${NC}"
 echo ""
 echo "Connection Details:"
 echo "  MAVLink: tcp:127.0.0.1:5760"
-echo "  Gazebo GUI: http://localhost:9002 (if not headless)"
+echo ""
+echo "View logs:"
+echo "  docker compose -f docker-compose.gazebo.yaml logs -f"
 echo ""
 echo "Run mission:"
 echo "  python3 -m autonomy.mission_manager --deployment deployments/full_sitl__gazebo.yaml"
 echo ""
 echo "Stop:"
 echo "  docker compose -f docker-compose.gazebo.yaml down"
+echo ""
+
+# Show logs
+echo -e "${BLUE}Showing logs (Ctrl+C to exit logs, containers keep running):${NC}"
+docker compose -f docker-compose.gazebo.yaml logs -f || true
