@@ -3,6 +3,7 @@ extends: default
 ignore: |
   .git/
   .github/
+  .venv/
 
 rules:
   line-length:

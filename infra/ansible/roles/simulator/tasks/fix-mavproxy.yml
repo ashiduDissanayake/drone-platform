@@ -1,7 +1,7 @@
 ---
 - name: Fix MAVProxy startup
   hosts: sitl-aws
-  gather_facts: no
+  gather_facts: false
   tasks:
     - name: Stop existing processes
       shell: |
@@ -12,7 +12,10 @@
     - name: Start SITL
       shell: |
         cd ~/ardupilot/ArduCopter
-        screen -dmS sitl bash -c '../build/sitl/bin/arducopter -w --model + --home -35.363261,149.165230,584,353 --defaults ../Tools/autotest/default_params/copter.parm --serial0 tcp:127.0.0.1:5760'
+        screen -dmS sitl bash -c '../build/sitl/bin/arducopter -w --model + \
+          --home -35.363261,149.165230,584,353 \
+          --defaults ../Tools/autotest/default_params/copter.parm \
+          --serial0 tcp:127.0.0.1:5760'
         sleep 5
 
     - name: Start MAVProxy
