@@ -1,4 +1,4 @@
-# ADR 001: Configuration Management
+# ADR 0001: Configuration Management
 
 **Status:** Proposed  
 **Date:** 2026-03-15  
