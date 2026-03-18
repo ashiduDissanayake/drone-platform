@@ -1,8 +1,23 @@
-# Gazebo Integration Plan
+# Gazebo Integration
 
-**Status:** Planned  
-**Priority:** High (Phase 2)  
+**Status:** ✅ **IMPLEMENTED**  
+**Priority:** High (Phase 1)  
 **Goal:** 3D visualization of drone missions
+
+## Quick Start
+
+```bash
+# 1. Start Gazebo + ArduPilot SITL
+cd simulation/gazebo
+./start-gazebo.sh
+
+# 2. Run mission (in another terminal)
+python3 -m autonomy.mission_manager --deployment deployments/full_sitl__gazebo.yaml
+
+# Or with config file
+export DRONE_CONFIG_FILE=config/settings.gazebo.toml
+python3 -m autonomy.mission_manager --deployment deployments/full_sitl__gazebo.yaml
+```
 
 ---
 
@@ -118,56 +133,51 @@ Integrate Gazebo (Modern/Ignition) with ArduPilot SITL for realistic 3D visualiz
 - Complex setup
 - Bandwidth intensive
 
-## Implementation Plan
+## Implementation Status
 
-### Phase 1: Local Docker Integration (Week 1)
+### ✅ Phase 1: Local Docker Integration (COMPLETE)
 
-**Tasks:**
-- [ ] Create `simulation/gazebo/` directory
-- [ ] Add `ardupilot_gazebo` plugin as Git submodule or Dockerfile
-- [ ] Create `Dockerfile.gazebo` with gz-sim + plugin
-- [ ] Create basic world SDF (`worlds/basic_field.sdf`)
-- [ ] Create `docker-compose.gazebo.yaml`
-- [ ] Test: `docker compose up` → see drone in Gazebo
+**Delivered:**
+- ✅ `simulation/gazebo/` directory structure
+- ✅ `Dockerfile.gazebo` with Gazebo Harmonic + ardupilot_gazebo plugin
+- ✅ `Dockerfile.sitl-gazebo` with ArduPilot SITL
+- ✅ `docker-compose.gazebo.yaml` multi-container setup
+- ✅ `start-gazebo.sh` convenience script
+- ✅ Basic Iris model with runway world
 
-**Success Criteria:**
+**Usage:**
 ```bash
-cd infra/compose
-docker compose -f docker-compose.gazebo.yaml up
+cd simulation/gazebo
+./start-gazebo.sh
 # Gazebo window opens with Iris drone
 # SITL connects automatically
-# Can arm/takeoff via QGC
+# Run mission manager to see it fly
 ```
 
-### Phase 2: Integration with Mission Manager (Week 2)
+### ✅ Phase 2: Integration with Mission Manager (COMPLETE)
 
-**Tasks:**
-- [ ] Add `gazebo.enabled` to config
-- [ ] Update `simulation/sitl_manager.py` to handle Gazebo mode
-- [ ] Ensure mission_manager can trigger missions with Gazebo visual
-- [ ] Add synchronization wait (Gazebo ready before SITL)
+**Delivered:**
+- ✅ `config/settings.gazebo.toml` with Gazebo-specific settings
+- ✅ `deployments/full_sitl__gazebo.yaml` deployment descriptor
+- ✅ Mission manager connects via MAVLink (tcp:127.0.0.1:5760)
+- ✅ Synchronization: SITL waits for Gazebo before starting
 
-**Success Criteria:**
+**Success Criteria - WORKING:**
 ```bash
 export DRONE_CONFIG_FILE=config/settings.gazebo.toml
-python3 -m autonomy.mission_manager --deployment deployments/full_sitl__single_device.yaml
-# See drone take off in Gazebo window
+python3 -m autonomy.mission_manager --deployment deployments/full_sitl__gazebo.yaml
+# See drone take off, fly waypoints, and land in Gazebo window
 ```
 
-### Phase 3: Cloud Deployment (Week 3)
+### 📋 Phase 3: Cloud Deployment (FUTURE)
 
-**Tasks:**
+**Planned:**
 - [ ] Research gz-web or WebRTC streaming
 - [ ] Add GPU instance type to Terraform
 - [ ] Create `infra/ansible/roles/gazebo/`
 - [ ] Test cloud Gazebo with local viewing
 
-**Success Criteria:**
-- Gazebo runs on EC2
-- User can view in browser
-- Full mission execution with visualization
-
-### Phase 4: Advanced Features (Week 4+)
+### 📋 Phase 4: Advanced Features (FUTURE)
 
 - [ ] Camera sensor (view from drone)
 - [ ] Lidar sensor (obstacle detection)
@@ -179,20 +189,19 @@ python3 -m autonomy.mission_manager --deployment deployments/full_sitl__single_d
 
 ```
 simulation/gazebo/
-├── README.md
-├── Dockerfile
-├── docker-compose.yaml
-├── worlds/
-│   ├── basic_field.sdf
-│   ├── runway.sdf
-│   └── warehouse.sdf
-├── models/
-│   └── iris_with_gimbal/
-│       ├── model.sdf
-│       └── model.config
-└── plugins/
-    └── ardupilot_gazebo/  # Git submodule or download
+├── README.md                    # Gazebo-specific documentation
+├── Dockerfile.gazebo            # Gazebo Harmonic + ardupilot_gazebo plugin
+├── Dockerfile.sitl-gazebo       # ArduPilot SITL with Gazebo support
+├── docker-compose.gazebo.yaml   # Multi-container orchestration
+├── start-gazebo.sh              # Convenience startup script
+├── worlds/                      # Custom SDF worlds (optional)
+└── models/                      # Custom models (optional)
 ```
+
+**Related Files:**
+- `config/settings.gazebo.toml` - Gazebo configuration
+- `deployments/full_sitl__gazebo.yaml` - Deployment descriptor
+- `docs/gazebo-integration.md` - This documentation
 
 ## Configuration
 
@@ -231,20 +240,40 @@ publish_topic = "/camera"
 - **Iris:** https://github.com/PX4/PX4-SITL_gazebo-classic
 - **Gazebo Models:** https://app.gazebosim.org/fuel
 
-## Quick Start (Future)
+## Quick Start
+
+### Option 1: Using start-gazebo.sh (Recommended)
 
 ```bash
-# Start Gazebo + SITL + Mission Manager
-docker compose -f infra/compose/docker-compose.gazebo.yaml up
+cd simulation/gazebo
+./start-gazebo.sh
 
 # In another terminal
 python3 -m autonomy.mission_manager \
-    --deployment deployments/full_sitl__single_device.yaml
+    --deployment deployments/full_sitl__gazebo.yaml
+```
 
-# Or with config file
+### Option 2: Using Docker Compose directly
+
+```bash
+cd simulation/gazebo
+
+# With GUI
+docker compose up --build
+
+# Headless mode (no GUI)
+docker compose up --build -d
+
+# Stop
+docker compose down
+```
+
+### Option 3: With Custom Config
+
+```bash
 export DRONE_CONFIG_FILE=config/settings.gazebo.toml
 python3 -m autonomy.mission_manager \
-    --deployment deployments/full_sitl__single_device.yaml
+    --deployment deployments/full_sitl__gazebo.yaml
 ```
 
 ## Troubleshooting
