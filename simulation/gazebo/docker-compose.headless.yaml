@@ -1,4 +1,4 @@
-# Gazebo + ArduPilot SITL - HEADLESS MODE (no GUI, works on all systems)
+# Gazebo + ArduPilot SITL - HEADLESS MODE
 services:
   gazebo:
     build:
@@ -8,18 +8,29 @@ services:
     environment:
       - GZ_SIM_SYSTEM_PLUGIN_PATH=/usr/local/lib/gz-sim-8/plugins:/usr/lib/aarch64-linux-gnu/gz-sim-8/plugins
       - GZ_SIM_RESOURCE_PATH=/usr/local/share/ardupilot_gazebo/worlds:/usr/share/gz/gz-sim8/worlds
-      - GZ_SIM_MODEL_PATH=/usr/local/share/ardupilot_gazebo/models
+      - GZ_SIM_MODEL_PATH=/usr/local/share/ardupilot_gazebo/models:/root/.gz/models
       - LD_LIBRARY_PATH=/usr/local/lib/gz-sim-8/plugins
+      - HOME=/root
     volumes:
       - gazebo-models:/root/.gz/models:rw
     ports:
       - "9002:9002"
     networks:
       - gazebo-network
-    # Run in headless mode (server only) - most reliable
     command: >
       bash -c "
-        echo 'Starting Gazebo Server (headless)...' &&
+        echo 'Setting up Gazebo models...' &&
+        mkdir -p /root/.gz/models &&
+        cd /root/.gz/models &&
+        if [ ! -d 'iris_with_gimbal' ]; then
+          echo 'Downloading models from ArduPilot...' &&
+          git clone --depth 1 https://github.com/ArduPilot/ardupilot_gazebo.git temp_clone &&
+          cp -r temp_clone/models/* . &&
+          rm -rf temp_clone &&
+          echo 'Models downloaded';
+        fi &&
+        ls -la &&
+        echo 'Starting Gazebo Server...' &&
         gz sim -v 4 -r /usr/local/share/ardupilot_gazebo/worlds/iris_runway.sdf -s
       "
 
@@ -44,7 +55,7 @@ services:
     command: >
       bash -c "
         echo 'Waiting for Gazebo...' &&
-        sleep 10 &&
+        sleep 15 &&
         /run-sitl.sh
       "
 
