@@ -1,0 +1,26 @@
+---
+- name: Fix MAVProxy startup
+  hosts: sitl-aws
+  gather_facts: no
+  tasks:
+    - name: Stop existing processes
+      shell: |
+        pkill -9 -f arducopter 2>/dev/null || true
+        pkill -9 -f mavproxy 2>/dev/null || true
+        sleep 2
+
+    - name: Start SITL
+      shell: |
+        cd ~/ardupilot/ArduCopter
+        screen -dmS sitl bash -c '../build/sitl/bin/arducopter -w --model + --home -35.363261,149.165230,584,353 --defaults ../Tools/autotest/default_params/copter.parm --serial0 tcp:127.0.0.1:5760'
+        sleep 5
+
+    - name: Start MAVProxy
+      shell: |
+        mavproxy.py --master=tcp:127.0.0.1:5760 --out=tcp:0.0.0.0:5762 --daemon
+        sleep 2
+
+    - name: Check status
+      shell: |
+        pgrep -a mavproxy || echo "No MAVProxy"
+        ss -tlnp | grep 5762 || echo "Port 5762 not listening"

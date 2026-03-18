@@ -2,6 +2,26 @@
 
 ## 🐛 Bug Fixes (From Copilot Review)
 
+### Critical - SITL Ansible PTY Issue
+**Problem:** SITL started via Ansible immediately crashed with exit code 1 after "Smoothing reset at 0.001"
+**Root Cause:** ArduPilot SITL requires a pseudo-terminal (PTY) to run. When started with `nohup`, systemd, or background processes without TTY, it crashes.
+**Solution:** Use `screen` to provide a detached PTY session for SITL.
+
+20. **infra/ansible/roles/simulator/tasks/main.yml**
+    - Added `screen` package installation
+    - Changed SITL startup from `nohup` + `at` to `screen -dmS sitl`
+    - SITL now runs in a detached screen session with PTY support
+    - Added autostart script at `~/.sitl-autostart.sh` for boot-time startup
+    - Removed broken systemd service approach and `at` command approach
+
+**Verification:**
+```bash
+ssh -i infra/terraform/sitl-key.pem ubuntu@44.202.139.154
+screen -r sitl  # Attach to SITL console
+# OR from local:
+python3 -c "from pymavlink import mavutil; m = mavutil.mavlink_connection('tcp:44.202.139.154:5760'); m.wait_heartbeat(timeout=10); print('OK')"
+```
+
 ### Critical
 1. **simulation/sitl_manager.py**
    - Fixed `connection_string` not being assigned to `self` for docker/local/external modes
@@ -134,7 +154,7 @@
 | SITL manager CLI | ✅ Pass |
 | Vehicle adapter CLI | ✅ Pass |
 | Config validation | ✅ Pass (3/3 deployments) |
-| Cloud SITL connection | ⚠️ Timeout (instance may be stopped) |
+| Cloud SITL connection | ✅ Working (via screen PTY) |
 
 ---
 

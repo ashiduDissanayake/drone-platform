@@ -15,9 +15,21 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Track step results
-declare -A STEP_STATUS
-declare -A STEP_MESSAGES
+# Check bash version (need 4.0+ for associative arrays)
+if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+    echo -e "${YELLOW}Warning: Bash ${BASH_VERSION} detected. Using simplified status tracking.${NC}"
+    USE_SIMPLE_STATUS=1
+else
+    USE_SIMPLE_STATUS=0
+    # Only use associative arrays if bash 4.0+
+    declare -A STEP_STATUS
+    declare -A STEP_MESSAGES
+fi
+
+# Track step results (simple arrays for bash 3.2 compatibility)
+STEP_NAMES=()
+STEP_STATUSES=()
+STEP_MSGS=()
 
 current_step=0
 total_steps=8
@@ -29,20 +41,35 @@ log_step() {
 }
 
 mark_success() {
-    STEP_STATUS[$1]="SUCCESS"
-    STEP_MESSAGES[$1]="$2"
+    STEP_NAMES+=("$1")
+    STEP_STATUSES+=("SUCCESS")
+    STEP_MSGS+=("$2")
+    if [ "$USE_SIMPLE_STATUS" -eq 0 ]; then
+        STEP_STATUS[$1]="SUCCESS"
+        STEP_MESSAGES[$1]="$2"
+    fi
     echo -e "${GREEN}✓ $2${NC}"
 }
 
 mark_failed() {
-    STEP_STATUS[$1]="FAILED"
-    STEP_MESSAGES[$1]="$2"
+    STEP_NAMES+=("$1")
+    STEP_STATUSES+=("FAILED")
+    STEP_MSGS+=("$2")
+    if [ "$USE_SIMPLE_STATUS" -eq 0 ]; then
+        STEP_STATUS[$1]="FAILED"
+        STEP_MESSAGES[$1]="$2"
+    fi
     echo -e "${RED}✗ $2${NC}"
 }
 
 mark_warning() {
-    STEP_STATUS[$1]="WARNING"
-    STEP_MESSAGES[$1]="$2"
+    STEP_NAMES+=("$1")
+    STEP_STATUSES+=("WARNING")
+    STEP_MSGS+=("$2")
+    if [ "$USE_SIMPLE_STATUS" -eq 0 ]; then
+        STEP_STATUS[$1]="WARNING"
+        STEP_MESSAGES[$1]="$2"
+    fi
     echo -e "${YELLOW}⚠ $2${NC}"
 }
 
@@ -96,6 +123,14 @@ fi
 # Get outputs
 SITL_IP=$(terraform output -raw sitl_public_ip)
 SSH_KEY="${REPO_ROOT}/infra/terraform/sitl-key.pem"
+
+# Ensure SSH key has correct permissions
+if [ -f "$SSH_KEY" ]; then
+    chmod 600 "$SSH_KEY"
+else
+    echo -e "${RED}✗ SSH key not found at ${SSH_KEY}${NC}"
+    exit 1
+fi
 
 # Step 3: Generate Config
 log_step "Generating deployment config..."
@@ -244,9 +279,12 @@ SUCCESS_COUNT=0
 FAILED_COUNT=0
 WARNING_COUNT=0
 
-for step in cleanup infrastructure config inventory security_group ec2_ready ansible sitl_verify; do
-    status="${STEP_STATUS[$step]:-SKIPPED}"
-    message="${STEP_MESSAGES[$step]:-No message}"
+# Use simple arrays for compatibility with bash 3.2
+i=0
+while [ $i -lt ${#STEP_NAMES[@]} ]; do
+    step="${STEP_NAMES[$i]}"
+    status="${STEP_STATUSES[$i]}"
+    message="${STEP_MSGS[$i]}"
     
     case $status in
         SUCCESS)
@@ -265,6 +303,7 @@ for step in cleanup infrastructure config inventory security_group ec2_ready ans
             echo -e "  ${step}: ${status}"
             ;;
     esac
+    i=$((i + 1))
 done
 
 echo ""

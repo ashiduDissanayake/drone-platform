@@ -1,6 +1,6 @@
 # Auto-generated cloud deployment config
-# Generated: 2026-03-16T16:20:14Z
-# SITL IP: 3.95.154.113
+# Generated: 2026-03-18T05:10:21Z
+# SITL IP: 54.83.153.78
 
 apiVersion: drone-platform/v1
 kind: Deployment
@@ -17,6 +17,6 @@ spec:
     companion_host: cloud-vm-companion
     sim_host: cloud-vm-sitl
   params:
-    sitl_connection: "tcp:3.95.154.113:5760"
+    sitl_connection: "tcp:54.83.153.78:5760"
     mission: v1_takeoff_waypoint_land
     generated: true

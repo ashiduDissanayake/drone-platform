@@ -38,13 +38,13 @@ resource "aws_security_group" "sitl" {
   name_prefix = "drone-platform-sitl-"
   description = "Security group for ArduPilot SITL"
 
-  # MAVLink TCP port (from your IP only)
+  # MAVLink TCP port - External access via MAVProxy
   ingress {
     from_port   = 5760
     to_port     = 5760
     protocol    = "tcp"
     cidr_blocks = ["${chomp(data.http.my_ip.response_body)}/32"]
-    description = "MAVLink TCP from my IP"
+    description = "MAVLink TCP external"
   }
 
   # MAVLink UDP port (optional, for QGC)
@@ -157,4 +157,9 @@ output "ssh_command" {
 output "ansible_command" {
   description = "Command to run Ansible configuration"
   value       = "cd ../ansible && ansible-playbook -i inventory/aws.yml site.yml"
+}
+
+output "sitl_security_group" {
+  description = "Security group ID for SITL"
+  value       = aws_security_group.sitl.id
 }

@@ -30,14 +30,21 @@ if [ ! -f "terraform.tfstate" ]; then
     exit 1
 fi
 
-# Get security group ID
-SG_ID=$(aws ec2 describe-security-groups \
-    --filters "Name=tag:Name,Values=drone-platform-sitl-sg" \
-    --query 'SecurityGroups[0].GroupId' \
-    --output text 2>/dev/null)
+# Get security group ID from Terraform state (most reliable)
+SG_ID=$(terraform output -raw sitl_security_group 2>/dev/null || \
+        terraform state show aws_security_group.sitl 2>/dev/null | grep "^id" | awk '{print $3}' | tr -d '"')
+
+# Fallback: find by name prefix if Terraform state doesn't work
+if [ -z "$SG_ID" ] || [ "$SG_ID" = "None" ]; then
+    SG_ID=$(aws ec2 describe-security-groups \
+        --filters "Name=group-name,Values=drone-platform-sitl-*" \
+        --query 'SecurityGroups[0].GroupId' \
+        --output text 2>/dev/null)
+fi
 
 if [ -z "$SG_ID" ] || [ "$SG_ID" = "None" ]; then
     echo -e "${RED}Error: Security group not found.${NC}"
+    echo "Make sure you've run './quickstart.sh' or 'terraform apply' first."
     exit 1
 fi
 
