@@ -1,9 +1,16 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
+# Development environment bootstrap
+# This is a wrapper - see setup-dev-env.sh for full implementation
+
+set -e
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-echo "[bootstrap] root: ${ROOT_DIR}"
+echo "=========================================="
+echo "  Drone Platform - Dev Environment Setup"
+echo "=========================================="
+echo ""
+echo "Running full setup script..."
+echo ""
 
-echo "[bootstrap] V1 bootstrap scaffold present."
-echo "[bootstrap] next: run python3 ./ops/scripts/validate-config.py --all"
+exec "${ROOT_DIR}/ops/scripts/setup-dev-env.sh" "$@"

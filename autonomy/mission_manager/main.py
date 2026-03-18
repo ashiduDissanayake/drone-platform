@@ -1,10 +1,11 @@
-"""Mission manager skeleton that resolves deployment -> profile -> mission catalog."""
+"""Mission manager that orchestrates missions with real or simulated vehicles."""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 import sys
+import time
 from typing import Any
 
 try:
@@ -14,8 +15,11 @@ except ImportError as exc:  # pragma: no cover - bootstrap environment guard
     raise SystemExit(2) from exc
 
 from adapters.vehicle_adapter import VehicleAdapter, VehicleCommand
+from interfaces.config import get_config
+from interfaces.logging import get_logger
 
 
+log = get_logger("mission-manager")
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
@@ -78,7 +82,7 @@ def scenario_to_commands(mission: dict[str, Any]) -> list[VehicleCommand]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run mission manager stub")
+    parser = argparse.ArgumentParser(description="Run mission manager")
     parser.add_argument(
         "--deployment",
         required=True,
@@ -87,7 +91,38 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--vehicle-backend",
         default="ardupilot_sitl",
-        help="Backend tag used by the vehicle adapter stub",
+        choices=["stub", "ardupilot_sitl", "ardupilot_serial"],
+        help="Backend for vehicle connection",
+    )
+    parser.add_argument(
+        "--connection",
+        help="MAVLink connection string (e.g., tcp:127.0.0.1:5760, udp:127.0.0.1:14550)",
+    )
+    parser.add_argument(
+        "--start-sitl",
+        action="store_true",
+        help="Automatically start SITL if using ardupilot_sitl backend",
+    )
+    parser.add_argument(
+        "--no-wait-ready",
+        action="store_true",
+        help="Skip waiting for vehicle GPS/health before first command",
+    )
+    parser.add_argument(
+        "--wait-timeout",
+        type=float,
+        default=90.0,
+        help="Timeout for vehicle ready wait (seconds, default: 90)",
+    )
+    parser.add_argument(
+        "--force-arm",
+        action="store_true",
+        help="Use force arm (bypass pre-arm checks) - NOT for real flights",
+    )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Enable debug logging",
     )
     return parser.parse_args()
 
@@ -95,6 +130,34 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     deployment_path = ROOT_DIR / args.deployment
+    
+    # Load configuration
+    config = get_config()
+    
+    sitl_manager = None
+    
+    # Use backend from args or config
+    backend = args.vehicle_backend or config.vehicle.backend
+    
+    log.info("starting", deployment=args.deployment, backend=backend)
+
+    # Auto-start SITL if requested
+    if args.start_sitl and backend == "ardupilot_sitl":
+        try:
+            from simulation.sitl_manager import SITLManager
+            # Use config values for SITL
+            sitl_manager = SITLManager(
+                mode=config.simulation.mode,
+                version=config.simulation.sitl_version,
+                vehicle_type=config.simulation.vehicle_type,
+            )
+            if not sitl_manager.start(wait=True, timeout=config.vehicle.timeouts.connection):
+                log.error("failed to start SITL")
+                return 1
+            log.info("SITL started automatically")
+        except Exception as e:
+            log.error("failed to start SITL", error=str(e))
+            return 1
 
     try:
         deployment = load_yaml(deployment_path)
@@ -107,39 +170,124 @@ def main() -> int:
 
         commands = scenario_to_commands(mission)
     except Exception as err:  # pragma: no cover - bootstrap CLI path
-        print(f"[mission-manager][error] {err}", file=sys.stderr)
+        log.error("failed to load configuration", error=str(err))
+        if sitl_manager:
+            sitl_manager.stop()
         return 1
 
-    print(f"[mission-manager] deployment: {args.deployment}")
-    print(f"[mission-manager] mission: {mission_name}")
+    log.info("configuration loaded", 
+             profile=profile_ref, 
+             mission=mission_name, 
+             commands=len(commands))
 
-    adapter = VehicleAdapter(backend=args.vehicle_backend)
-    for command in commands:
-        if command.name == "arm":
-            print(f"[mission-manager] arming {command.payload['vehicle_id']}")
-        elif command.name == "takeoff":
-            alt = command.payload.get("target_altitude_m", "?")
-            print(f"[mission-manager] takeoff to {alt}m")
-        elif command.name == "goto_waypoint":
-            lat = command.payload.get("lat", "?")
-            lon = command.payload.get("lon", "?")
-            alt = command.payload.get("alt", "?")
-            print(f"[mission-manager] go to waypoint lat={lat} lon={lon} alt={alt}")
-        elif command.name == "land":
-            print("[mission-manager] land")
-        elif command.name == "disarm":
-            print(f"[mission-manager] disarming {command.payload['vehicle_id']}")
-        else:
-            print(f"[mission-manager] execute {command.name}")
+    topology_ref = deployment.get("spec", {}).get("topology")
+    if topology_ref:
+        log.info("topology", ref=topology_ref)
 
-        telemetry = adapter.execute(command)
-        print(
-            "[mission-manager] telemetry state: "
-            f"armed={telemetry['data']['state']['armed']} "
-            f"alt={telemetry['data']['position']['alt_m']}"
-        )
+    # Create adapter with appropriate connection
+    # Priority: CLI arg > deployment params > config > default
+    connection_string = args.connection
+    
+    if not connection_string:
+        deployment_params = deployment.get("spec", {}).get("params", {})
+        connection_string = deployment_params.get("sitl_connection")
+        if connection_string:
+            log.info("using connection from deployment config", connection=connection_string)
+    
+    if not connection_string and sitl_manager:
+        connection_string = sitl_manager.connection_string
+    
+    if not connection_string and backend == "ardupilot_sitl":
+        connection_string = config.vehicle.connection_string
+        log.info("using connection from config", connection=connection_string)
+    
+    adapter = VehicleAdapter(
+        backend=backend,
+        connection_string=connection_string,
+        auto_connect=True,
+        config=config,
+    )
+    log.info("adapter initialized", 
+             backend=backend,
+             connection=connection_string or "default")
 
-    return 0
+    # Wait for vehicle ready before first command
+    if not args.no_wait_ready and backend != "stub":
+        # Check if connected first
+        if not adapter.is_connected():
+            log.error("not connected to vehicle - cannot proceed")
+            adapter.disconnect()
+            if sitl_manager:
+                sitl_manager.stop()
+            return 1
+        
+        log.info("waiting for vehicle ready (GPS, EKF)...")
+        wait_timeout = args.wait_timeout or config.vehicle.timeouts.connection
+        if not adapter.wait_for_ready(timeout=wait_timeout):
+            log.error("vehicle not ready within timeout")
+            adapter.disconnect()
+            if sitl_manager:
+                sitl_manager.stop()
+            return 1
+
+    # Apply force arm if requested (modify the arm command)
+    # Use CLI arg, or config value
+    force_arm = args.force_arm or config.vehicle.force_arm
+    if force_arm:
+        for cmd in commands:
+            if cmd.name == "arm":
+                cmd.payload["force"] = True
+                log.warning("force arm enabled - bypassing safety checks")
+
+    success = True
+    for idx, command in enumerate(commands, 1):
+        log.info("executing command", 
+                 step=f"{idx}/{len(commands)}", 
+                 command=command.name,
+                 vehicle=command.payload.get("vehicle_id"))
+
+        if args.verbose:
+            log.debug("command payload", **command.payload)
+
+        try:
+            telemetry = adapter.execute(command)
+        except Exception as err:
+            log.error("command failed", 
+                     command=command.name, 
+                     error=str(err),
+                     step=f"{idx}/{len(commands)}")
+            success = False
+            break
+
+        # Log telemetry summary
+        pos = telemetry["data"]["position"]
+        state = telemetry["data"]["state"]
+        battery = telemetry["data"]["battery"]
+        
+        log.info("telemetry received",
+                vehicle=telemetry["vehicle_id"],
+                armed=state["armed"],
+                mode=state["mode"],
+                alt_m=pos["alt_m"],
+                battery_pct=battery["percent"],
+                gps_ok=state["health_flags"].get("gps_ok", False))
+
+    # Cleanup
+    adapter.disconnect()
+    if sitl_manager:
+        log.info("stopping SITL")
+        sitl_manager.stop()
+
+    if success:
+        log.info("mission completed successfully", 
+                mission=mission_name,
+                commands_executed=len(commands))
+        return 0
+    else:
+        log.error("mission failed", 
+                 mission=mission_name,
+                 failed_at=f"{idx}/{len(commands)}")
+        return 1
 
 
 if __name__ == "__main__":

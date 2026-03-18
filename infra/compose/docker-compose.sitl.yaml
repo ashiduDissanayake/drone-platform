@@ -1,0 +1,64 @@
+# Docker Compose for ArduPilot SITL simulation
+# Usage: docker compose -f docker-compose.sitl.yaml up --build
+#
+# This builds and starts ArduPilot SITL with Copter firmware on TCP port 5760.
+# Connect with: tcp:127.0.0.1:5760
+
+services:
+  ardupilot-sitl:
+    build:
+      context: .
+      dockerfile: Dockerfile.sitl
+    container_name: drone-platform-sitl
+    command: >
+      python3 Tools/autotest/sim_vehicle.py
+      -v ArduCopter
+      -L Home
+      --out tcp:0.0.0.0:5760
+      --out udp:0.0.0.0:14550
+      --no-rebuild
+      --no-mavproxy
+    ports:
+      # MAVLink TCP (for pymavlink connection)
+      - "5760:5760"
+      # MAVLink UDP (for ground stations)
+      - "14550:14550/udp"
+      - "14551:14551/udp"
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - MAVLINK20=1
+    volumes:
+      # For persistent logs/parameters
+      - sitl_logs:/opt/ardupilot/logs
+    networks:
+      - sitl_net
+    # Required for simulation timing
+    privileged: true
+    restart: unless-stopped
+
+  # Optional: MAVProxy ground control
+  mavproxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.sitl
+    container_name: drone-platform-mavproxy
+    command: >
+      mavproxy.py
+      --master=tcp:ardupilot-sitl:5760
+      --out=udp:host.docker.internal:14550
+      --out=udp:host.docker.internal:14551
+      --console
+    depends_on:
+      - ardupilot-sitl
+    networks:
+      - sitl_net
+    profiles:
+      - mavproxy
+
+volumes:
+  sitl_logs:
+    driver: local
+
+networks:
+  sitl_net:
+    driver: bridge

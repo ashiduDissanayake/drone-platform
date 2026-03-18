@@ -1,0 +1,36 @@
+# Drone Platform Configuration
+# Default settings for local development
+
+[vehicle]
+backend = "ardupilot_sitl"
+connection_string = "tcp:127.0.0.1:5760"
+force_arm = false
+vehicle_type = "copter"
+
+[vehicle.timeouts]
+connection = 30.0
+arming = 60.0
+takeoff = 120.0
+mission = 300.0
+mode_change = 10.0
+
+[simulation]
+mode = "local"
+sitl_version = "4.8"
+vehicle_type = "copter"
+
+[simulation.gazebo]
+enabled = false
+world = "basic_field"
+model = "iris"
+physics_rtf = 1.0
+gz_version = "modern"
+
+[logging]
+level = "INFO"
+format = "structured"
+
+[mqtt]
+enabled = false
+host = "localhost"
+port = 1883

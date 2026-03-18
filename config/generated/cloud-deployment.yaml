@@ -1,0 +1,22 @@
+# Auto-generated cloud deployment config
+# Generated: 2026-03-18T05:10:21Z
+# SITL IP: 54.83.153.78
+
+apiVersion: drone-platform/v1
+kind: Deployment
+metadata:
+  name: cloud_sitl__generated
+  description: Auto-generated cloud SITL deployment
+generated_by: infra/scripts/setup-cloud-sitl.sh
+spec:
+  profile: profiles/full_sitl.yaml
+  topology: topologies/split_device.yaml
+  inventory: inventory/cloud.yaml
+  role_assignments:
+    gcs_host: local-laptop
+    companion_host: cloud-vm-companion
+    sim_host: cloud-vm-sitl
+  params:
+    sitl_connection: "tcp:54.83.153.78:5760"
+    mission: v1_takeoff_waypoint_land
+    generated: true

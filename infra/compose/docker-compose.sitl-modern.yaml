@@ -1,0 +1,35 @@
+# Docker Compose for Modern ArduPilot SITL (Copter 4.x)
+# This uses pre-built ArduPilot SITL that actually arms!
+
+services:
+  ardupilot-sitl:
+    image: radarku/ardupilot-sitl:latest
+    container_name: drone-platform-sitl
+    environment:
+      - VEHICLE=ArduCopter
+      - MODEL=quad
+      - LAT=-35.363261
+      - LON=149.165230
+      - ALT=584
+      - DIR=353
+      - SPEEDUP=1
+    ports:
+      # MAVLink TCP (primary)
+      - "5760:5760"
+      # MAVLink UDP for ground stations
+      - "14550:14550/udp"
+      - "14551:14551/udp"
+    networks:
+      - sitl_net
+    # Required for SITL timing
+    privileged: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "5760"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+networks:
+  sitl_net:
+    driver: bridge

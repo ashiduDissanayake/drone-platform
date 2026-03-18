@@ -5,8 +5,12 @@ metadata:
 spec:
   vehicle_id: vehicle-1
   actions:
+    - action: set_mode
+      params:
+        mode: STABILIZE
     - action: arm
-      params: {}
+      params:
+        force: true
     - action: takeoff
       params:
         target_altitude_m: 10

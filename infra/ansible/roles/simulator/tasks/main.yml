@@ -1,4 +1,200 @@
 ---
-- name: Simulator role placeholder
-  ansible.builtin.debug:
-    msg: "simulator role skeleton - replace with provisioning tasks"
+- name: Complete ArduPilot SITL Setup
+  block:
+    - name: Install all dependencies
+      apt:
+        name:
+          - git
+          - python3
+          - python3-pip
+          - python3-dev
+          - g++
+          - make
+          - gcc
+          - screen
+          - net-tools
+          - psmisc
+          - swig
+        state: present
+        update_cache: true
+      become: true
+
+    - name: Ensure python command exists
+      command: update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+      become: true
+      changed_when: false
+
+    - name: Install all Python packages at once
+      pip:
+        name:
+          - pymavlink>=2.4.0
+          - MAVProxy>=1.8.0
+          - empy==3.3.4
+          - pyserial
+          - future
+          - pexpect
+          - lxml
+        executable: pip3
+      become: true
+
+    - name: Clone ArduPilot (shallow clone)
+      git:
+        repo: https://github.com/ArduPilot/ardupilot.git
+        dest: "{{ ansible_facts['env']['HOME'] }}/ardupilot"
+        depth: 1
+        version: Copter-4.4
+      register: git_clone
+
+    - name: Initialize git submodules (minimal)
+      shell: |
+        cd ~/ardupilot
+        git submodule update --init --depth 1 --recursive modules/mavlink 2>/dev/null || true
+        git submodule update --init --depth 1 --recursive modules/uavcan 2>/dev/null || true
+      when: git_clone.changed
+
+    - name: Configure waf
+      command: ./waf configure --board sitl
+      args:
+        chdir: "{{ ansible_facts['env']['HOME'] }}/ardupilot"
+      when: git_clone.changed
+
+    - name: Build SITL with verbose output (takes 5-10 minutes)
+      shell: |
+        echo "Starting SITL build at $(date '+%H:%M:%S')..."
+        ./waf copter -v 2>&1 | while read line; do echo "[$(date '+%H:%M:%S')] $line"; done
+        echo "Build completed at $(date '+%H:%M:%S')"
+      args:
+        chdir: "{{ ansible_facts['env']['HOME'] }}/ardupilot"
+      when: git_clone.changed
+
+    - name: Verify SITL binary exists
+      stat:
+        path: "{{ ansible_facts['env']['HOME'] }}/ardupilot/build/sitl/bin/arducopter"
+      register: sitl_binary
+      failed_when: not sitl_binary.stat.exists
+
+    - name: Create SITL+MAVProxy runner script
+      copy:
+        dest: "{{ ansible_facts['env']['HOME'] }}/run-sitl.sh"
+        content: |
+          #!/bin/bash
+          # SITL + MAVProxy runner (corrected for GCS heartbeat)
+          set -e
+
+          echo "[$(date)] Starting SITL + MAVProxy..."
+
+          cleanup() {
+            pkill -9 -f arducopter 2>/dev/null || true
+            pkill -9 -f mavproxy 2>/dev/null || true
+            screen -wipe 2>/dev/null || true
+            sleep 2
+          }
+          cleanup
+
+          cd ~/ardupilot/ArduCopter
+
+          # Start SITL in screen (internal port 5761)
+          screen -dmS sitl bash -c '
+            export HOME=/home/ubuntu
+            cd ~/ardupilot/ArduCopter
+            exec ../build/sitl/bin/arducopter \
+              -w \
+              --model + \
+              --home -35.363261,149.165230,584,353 \
+              --defaults ../Tools/autotest/default_params/copter.parm \
+              --serial0 tcp:5761
+          '
+
+          echo "[$(date)] SITL started, waiting for port 5761..."
+
+          # Wait for SITL to be connectable (not just listening)
+          for i in {1..60}; do
+            if nc -z 127.0.0.1 5761 2>/dev/null; then
+              echo "[$(date)] ✓ SITL ready on 5761"
+              # Extra wait for full initialization
+              sleep 5
+              break
+            fi
+            sleep 1
+          done
+
+          # Start MAVProxy in screen (provides GCS heartbeat)
+          # tcpin:0.0.0.0:5760 makes MAVProxy LISTEN on 5760 for external connections
+          screen -dmS mavproxy mavproxy.py \
+            --master=tcp:127.0.0.1:5761 \
+            --out=tcpin:0.0.0.0:5760
+
+          echo "[$(date)] MAVProxy started, waiting for port 5760..."
+
+          # Wait for MAVProxy to listen on 5760
+          for i in {1..30}; do
+            if ss -tlnp 2>/dev/null | grep -q '5760.*mavproxy'; then
+              echo "[$(date)] ✓ MAVProxy ready on 5760"
+              break
+            fi
+            sleep 1
+          done
+
+          echo ""
+          echo "=== SITL + MAVProxy Running ==="
+          echo "External: tcp://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):5760"
+          pgrep -a arducopter | head -1 | sed 's/^/  /'
+          pgrep -a mavproxy | head -1 | sed 's/^/  /'
+        mode: "0755"
+
+    - name: Check current status
+      shell: ss -tlnp 2>/dev/null | grep -q ':5760' && echo "running" || echo "stopped"
+      register: current_status
+      changed_when: false
+
+    - name: Stop existing if running
+      shell: |
+        pkill -9 -f arducopter 2>/dev/null || true
+        pkill -9 -f mavproxy 2>/dev/null || true
+        sleep 2
+      when: current_status.stdout == "running"
+
+    - name: Start SITL+MAVProxy
+      shell: ~/run-sitl.sh
+      async: 120
+      poll: 0
+      when: current_status.stdout == "stopped"
+
+    - name: Wait for startup
+      pause:
+        seconds: 15
+      when: current_status.stdout == "stopped"
+
+    - name: Verify SITL is listening (check for any SITL port)
+      shell: ss -tlnp | grep -q 'arducopter' && echo "yes" || echo "no"
+      register: sitl_listening
+      changed_when: false
+      until: sitl_listening.stdout == "true"
+      retries: 10
+      delay: 3
+
+    - name: Show SITL status
+      debug:
+        msg: "SITL is listening on: {{ sitl_listening.stdout }}"
+
+    - name: Get status
+      shell: |
+        echo "=== Status ==="
+        pgrep -a arducopter | head -1 || echo "SITL: Not running"
+        pgrep -a mavproxy | head -1 || echo "MAVProxy: Not running"
+        echo "=== Ports ==="
+        ss -tlnp | grep -E '576[0123]' || echo "No MAVLink ports"
+        echo "=== External Access ==="
+        echo "tcp://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null):5760"
+      register: status
+      changed_when: false
+
+    - name: Show status
+      debug:
+        var: status.stdout_lines
+
+  rescue:
+    - debug:
+        msg: "Setup failed. SSH: ssh -i {{ ansible_ssh_private_key_file }} ubuntu@{{ inventory_hostname }}"
+    - fail:
+        msg: "SITL setup failed"
