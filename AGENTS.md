@@ -21,7 +21,7 @@
 
 | Criterion | Target | Current Status |
 |-----------|--------|----------------|
-| **Time to First Mission** | < 15 minutes from clone | ~30 min (needs optimization) |
+| **Time to First Mission** | < 15 minutes from clone | ~15 min (quickstart.sh works!) |
 | **Setup Friction** | Single command | `./quickstart.sh` works but slow |
 | **Abstraction Clarity** | Component substitution without cascade | ✅ Adapter pattern implemented |
 | **Debugging Efficiency** | < 5 min fault isolation | ✅ Structured logging implemented |
@@ -34,9 +34,9 @@
 
 | Milestone | Deliverable | Success Criteria | Status |
 |-----------|-------------|------------------|--------|
-| **T2 Topology MVP** | Split-device deployment with MQTT | Mission manager on laptop, SITL on cloud working | 🚧 In Progress |
+| **T2 Topology MVP** | Split-device deployment | Mission manager on laptop, SITL on cloud working | ✅ **COMPLETE** |
 | **Gazebo Integration** | 3D visualization in Docker | See drone fly in Gazebo with mission manager | 🚧 Planned |
-| **Test Coverage** | Unit + integration tests | 60%+ line coverage, CI passing | ⏸️ Not Started |
+| **Test Coverage** | Unit + integration tests | 60%+ line coverage, CI passing | 🚧 In Progress |
 | **Documentation** | Complete API reference + tutorials | External user can complete without help | 🚧 In Progress |
 
 **Technology Choices**:
@@ -241,7 +241,7 @@ docker compose -f docker-compose.base.yaml -f docker-compose.full_sitl__single_d
 | `interfaces/config` | ✅ Complete | Pydantic Settings, TOML + env overrides |
 | Cloud SITL (AWS) | ✅ Complete | Terraform + Ansible automation |
 | `infra/terraform` | ✅ Complete | EC2 SITL deployment |
-| `infra/ansible` | ✅ Complete | SITL provisioning (with fixes) |
+| `infra/ansible` | ✅ Complete | SITL provisioning with MAVProxy GCS heartbeat |
 
 ### 🚧 Phase 1: Foundation Hardening (In Progress)
 
@@ -373,21 +373,32 @@ spec:
 
 Based on current state, focus on:
 
-1. **T2 Topology MVP** (Week 1)
-   - MQTT broker in Docker Compose
-   - Basic split-device: mission_manager → MQTT → vehicle_adapter
-   - Test: laptop + cloud SITL
+### ✅ Completed This Week
+1. **Cloud SITL Pipeline** - Fully working end-to-end
+   - Terraform infrastructure automation
+   - Ansible provisioning with MAVProxy GCS heartbeat
+   - Mission manager connects from laptop to Cloud SITL
+   - Vehicle arms, takes off, executes waypoints, lands
 
-2. **Gazebo Integration** (Week 2)
-   - `simulation/gazebo/` directory structure
-   - Docker Compose with ardupilot_gazebo
-   - Basic world (iris + empty field)
-   - Integration test
+### 🚧 Next Priority: Gazebo Integration (Week 1-2)
 
-3. **Repository Cleanup**
-   - Remove deprecated files
-   - Consolidate documentation
-   - Fix Ansible playbook (already done)
+**Why Gazebo now?**
+- Core platform (mission manager + vehicle adapter) is stable
+- Cloud SITL proves distributed topology works
+- Gazebo adds visual feedback and physics validation
+- Natural progression before hardware (HIL)
+
+**Deliverables:**
+1. `simulation/gazebo/` directory with Docker Compose
+2. ardupilot_gazebo plugin integration
+3. Basic world (iris quadcopter + empty field)
+4. Mission execution with 3D visualization
+5. Documentation update
+
+**Alternative priorities** (if Gazebo is not urgent):
+- **MQTT-based T2**: Formalize split-device communication
+- **Test Coverage**: Add pytest + integration tests
+- **HIL Prep**: Prepare for hardware-in-the-loop
 
 See `docs/roadmap-v1.md` for detailed Phase 1 plan.
 
@@ -423,5 +434,5 @@ Key ADRs in `docs/adr/`:
 
 ---
 
-*Last updated: 2026-03-16*
-*Current Phase: Phase 1 - Foundation Hardening*
+*Last updated: 2026-03-18*
+*Current Phase: Phase 1 - Foundation Hardening (Cloud SITL Complete)*
