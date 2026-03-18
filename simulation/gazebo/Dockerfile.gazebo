@@ -44,6 +44,8 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-dri \
     # JSON library for ardupilot_gazebo
     rapidjson-dev \
+    # OpenCV for ardupilot_gazebo
+    libopencv-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Build and install ardupilot_gazebo plugin
