@@ -39,9 +39,9 @@ if [ "$HEADLESS" = false ]; then
 fi
 
 # Check if already running
-if docker compose ps | grep -q "gazebo\|sitl-gazebo"; then
+if docker compose -f docker-compose.gazebo.yaml ps | grep -q "gazebo\|sitl-gazebo"; then
     echo -e "${YELLOW}Gazebo appears to be already running${NC}"
-    echo "Run 'docker compose down' first to restart"
+    echo "Run 'docker compose -f docker-compose.gazebo.yaml down' first to restart"
     exit 0
 fi
 
@@ -52,10 +52,10 @@ echo ""
 if [ "$HEADLESS" = true ]; then
     # Headless mode - override command
     echo -e "${BLUE}Starting in headless mode...${NC}"
-    docker compose up --build -d
+    docker compose -f docker-compose.gazebo.yaml up --build -d
 else
     # GUI mode
-    docker compose up --build
+    docker compose -f docker-compose.gazebo.yaml up --build
 fi
 
 echo ""
@@ -69,4 +69,4 @@ echo "Run mission:"
 echo "  python3 -m autonomy.mission_manager --deployment deployments/full_sitl__gazebo.yaml"
 echo ""
 echo "Stop:"
-echo "  docker compose down"
+echo "  docker compose -f docker-compose.gazebo.yaml down"
