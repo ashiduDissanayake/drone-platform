@@ -78,6 +78,8 @@ class SITLManager:
         else:
             self.connection_string = _EXTERNAL_CONNECTION
         
+        self.connection_string = conn_str
+        
         # Docker compose file path
         if docker_compose_file:
             self._compose_file = Path(docker_compose_file)
