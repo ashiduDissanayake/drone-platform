@@ -1,0 +1,44 @@
+# Gazebo + ArduPilot using PRE-BUILT images
+# No compilation needed - much faster!
+
+services:
+  gazebo-sitl:
+    # Official ArduPilot image with Gazebo already built
+    image: ardupilot/ardupilot-gazebo-sitl:latest
+    container_name: drone-platform-gazebo
+    privileged: true  # Needed for Gazebo GUI
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    ports:
+      # MAVLink ports
+      - "5760:5760"
+      - "5762:5762"
+      - "5763:5763"
+      - "14550:14550/udp"
+      # Gazebo Web GUI
+      - "8080:8080"
+    networks:
+      - gazebo-net
+    command: >
+      bash -c "
+        echo 'Starting Gazebo + ArduPilot SITL...' &&
+        gz sim -v 4 -r iris_runway.sdf --headless-rendering -s &
+        sleep 5 &&
+        /ardupilot/build/sitl/bin/arducopter \\
+          -w --model gazebo-iris \\
+          --home -35.363261,149.165230,584,353 \\
+          --defaults /ardupilot/Tools/autotest/default_params/copter.parm \\
+          --serial0 tcp:0.0.0.0:5760
+      "
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "5760"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+networks:
+  gazebo-net:
+    driver: bridge
