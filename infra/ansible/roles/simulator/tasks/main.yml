@@ -37,41 +37,36 @@
         executable: pip3
       become: true
 
-    - name: Clone ArduPilot (shallow clone)
-      git:
-        repo: https://github.com/ArduPilot/ardupilot.git
-        dest: "{{ ansible_facts['env']['HOME'] }}/ardupilot"
-        depth: 1
-        version: Copter-4.4
-      register: git_clone
+    - name: Create ArduPilot directory structure
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ ansible_facts['env']['HOME'] }}/ardupilot/build/sitl/bin"
+        - "{{ ansible_facts['env']['HOME'] }}/ardupilot/ArduCopter"
+        - "{{ ansible_facts['env']['HOME'] }}/ardupilot/Tools/autotest/default_params"
 
-    - name: Initialize git submodules (minimal)
+    - name: Download pre-built ArduPilot SITL binary (Copter latest)
+      get_url:
+        url: https://firmware.ardupilot.org/Copter/latest/SITL_x86_64_linux_gnu/arducopter
+        dest: "{{ ansible_facts['env']['HOME'] }}/ardupilot/build/sitl/bin/arducopter"
+        mode: "0755"
+        force: true
+      register: binary_download
+
+    - name: Download default copter parameters
+      get_url:
+        url: https://raw.githubusercontent.com/ArduPilot/ardupilot/master/Tools/autotest/default_params/copter.parm
+        dest: "{{ ansible_facts['env']['HOME'] }}/ardupilot/Tools/autotest/default_params/copter.parm"
+        force: false
+
+    - name: Verify SITL binary exists and is executable
       shell: |
-        cd ~/ardupilot
-        git submodule update --init --depth 1 --recursive modules/mavlink 2>/dev/null || true
-        git submodule update --init --depth 1 --recursive modules/uavcan 2>/dev/null || true
-      when: git_clone.changed
-
-    - name: Configure waf
-      command: ./waf configure --board sitl
-      args:
-        chdir: "{{ ansible_facts['env']['HOME'] }}/ardupilot"
-      when: git_clone.changed
-
-    - name: Build SITL with verbose output (takes 5-10 minutes)
-      shell: |
-        echo "Starting SITL build at $(date '+%H:%M:%S')..."
-        ./waf copter -v 2>&1 | while read line; do echo "[$(date '+%H:%M:%S')] $line"; done
-        echo "Build completed at $(date '+%H:%M:%S')"
-      args:
-        chdir: "{{ ansible_facts['env']['HOME'] }}/ardupilot"
-      when: git_clone.changed
-
-    - name: Verify SITL binary exists
-      stat:
-        path: "{{ ansible_facts['env']['HOME'] }}/ardupilot/build/sitl/bin/arducopter"
+        ls -la ~/ardupilot/build/sitl/bin/arducopter
+        ~/ardupilot/build/sitl/bin/arducopter --version 2>&1 | head -2 || true
       register: sitl_binary
-      failed_when: not sitl_binary.stat.exists
+      changed_when: false
 
     - name: Create SITL+MAVProxy runner script
       copy:
@@ -99,10 +94,11 @@
             cd ~/ardupilot/ArduCopter
             exec ../build/sitl/bin/arducopter \
               -w \
-              --model + \
+              --model JSON \
               --home -35.363261,149.165230,584,353 \
               --defaults ../Tools/autotest/default_params/copter.parm \
-              --serial0 tcp:5761
+              --serial0 tcp:5761 \
+              --sim-address 127.0.0.1
           '
 
           echo "[$(date)] SITL started, waiting for port 5761..."
@@ -149,27 +145,28 @@
 
     - name: Stop existing if running
       shell: |
-        pkill -9 -f arducopter 2>/dev/null || true
-        pkill -9 -f mavproxy 2>/dev/null || true
+        # Kill by PID to avoid matching the SSH session itself
+        pgrep -f 'arducopter' | xargs -r kill -9 2>/dev/null || true
+        pgrep -f 'mavproxy' | xargs -r kill -9 2>/dev/null || true
+        screen -wipe 2>/dev/null || true
         sleep 2
       when: current_status.stdout == "running"
+      ignore_errors: true
 
     - name: Start SITL+MAVProxy
       shell: ~/run-sitl.sh
       async: 120
       poll: 0
-      when: current_status.stdout == "stopped"
 
     - name: Wait for startup
       pause:
         seconds: 15
-      when: current_status.stdout == "stopped"
 
     - name: Verify SITL is listening (check for any SITL port)
       shell: ss -tlnp | grep -q 'arducopter' && echo "yes" || echo "no"
       register: sitl_listening
       changed_when: false
-      until: sitl_listening.stdout == "true"
+      until: sitl_listening.stdout == "yes"
       retries: 10
       delay: 3
 
@@ -198,3 +195,13 @@
         msg: "Setup failed. SSH: ssh -i {{ ansible_ssh_private_key_file }} ubuntu@{{ inventory_hostname }}"
     - fail:
         msg: "SITL setup failed"
+
+# Include Gazebo bridge setup (optional, for Gazebo visualization)
+- name: Include Gazebo bridge setup
+  include_tasks: gazebo-bridge.yml
+  when: enable_gazebo_bridge | default(false) | bool
+
+# Include WireGuard VPN setup (required for Gazebo to reach SITL)
+- name: Include WireGuard VPN setup
+  include_tasks: wireguard.yml
+  when: enable_wireguard | default(false) | bool

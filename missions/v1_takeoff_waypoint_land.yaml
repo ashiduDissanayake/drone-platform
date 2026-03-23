@@ -7,7 +7,7 @@ spec:
   actions:
     - action: set_mode
       params:
-        mode: STABILIZE
+        mode: GUIDED
     - action: arm
       params:
         force: true

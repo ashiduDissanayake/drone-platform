@@ -99,6 +99,18 @@ else
     echo -e "${YELLOW}⚠ Rule for $CURRENT_IP/32 may already exist${NC}"
 fi
 
+# Also update WireGuard port (51820 UDP)
+echo -e "${YELLOW}Adding WireGuard VPN rule (UDP 51820)...${NC}"
+if aws ec2 authorize-security-group-ingress \
+    --group-id "$SG_ID" \
+    --protocol udp \
+    --port 51820 \
+    --cidr "$CURRENT_IP/32" 2>/dev/null; then
+    echo -e "${GREEN}✓ WireGuard rule added for $CURRENT_IP/32${NC}"
+else
+    echo -e "${YELLOW}⚠ WireGuard rule for $CURRENT_IP/32 may already exist${NC}"
+fi
+
 echo ""
 echo "=========================================="
 echo -e "${GREEN}  Security Group Updated!${NC}"

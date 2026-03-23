@@ -1,0 +1,35 @@
+apiVersion: drone-platform/v1
+kind: Deployment
+metadata:
+  name: full_sitl__web_platform
+  description: >
+    Cloud SITL + Gazebo headless on EC2, web API + MQTT telemetry bus.
+    This is the primary deployment for the web-native GCS platform.
+    SITL and Gazebo run co-located on EC2 loopback — no VPN or packet loss.
+spec:
+  profile: profiles/full_sitl.yaml
+  topology: topologies/split_device.yaml
+  inventory: inventory/cloud.yaml
+  params:
+    # MAVLink connection to SITL via MAVProxy on EC2
+    sitl_connection: "tcp:15.207.113.11:5760"
+    # Simulation mode: SITL + Gazebo headless on EC2
+    simulation_mode: "cloud"
+    # Gazebo headless (no GUI — web UI is the visualization layer)
+    gazebo_headless: true
+    # MQTT broker on EC2 (EMQX, Sprint 2)
+    mqtt_host: "15.207.113.11"
+    mqtt_port: 8083          # MQTT over WebSocket for browser clients
+    mqtt_port_internal: 1883 # MQTT TCP for server-side clients
+    # API server on EC2 (FastAPI, Sprint 2)
+    api_host: "15.207.113.11"
+    api_port: 8000
+    # ROS2 bridges on EC2 (Sprint 1)
+    rosbridge_host: "15.207.113.11"
+    rosbridge_port: 9090
+    foxglove_bridge_port: 8765
+    # Notes:
+    # 1. Gazebo + SITL: ~/run-sitl.sh on EC2 (--sim-address 127.0.0.1)
+    # 2. ROS2: screen -r mavros / screen -r rosbridge on EC2
+    # 3. API: uvicorn api.main:app --host 0.0.0.0 --port 8000 on EC2
+    # 4. UI: open http://15.207.113.11:8000 in browser

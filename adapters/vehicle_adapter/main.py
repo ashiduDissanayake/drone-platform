@@ -54,7 +54,7 @@ class MAVLinkConnection:
         log.info("connecting to vehicle", connection=self.connection_string)
         
         try:
-            self._master = mavutil.mavlink_connection(self.connection_string)
+            self._master = mavutil.mavlink_connection(self.connection_string, source_system=255)
             heartbeat = self._master.wait_heartbeat(timeout=self.timeout)
             if heartbeat is None:
                 log.error("did not receive HEARTBEAT within timeout")
@@ -565,7 +565,19 @@ class VehicleAdapter:
         elif cmd == "takeoff":
             alt = float(payload.get("target_altitude_m", 10.0))
             self._connection.takeoff(alt)
-        
+            # Wait until drone reaches 90% of target altitude (max 60s)
+            deadline = time.time() + 60.0
+            while time.time() < deadline:
+                time.sleep(1.0)
+                telem = self._connection.get_telemetry()
+                current_alt = telem.get("position", {}).get("alt_m", 0.0)
+                log.info("climbing", current_alt_m=f"{current_alt:.1f}", target_alt_m=alt)
+                if current_alt >= alt * 0.9:
+                    log.info("target altitude reached", alt_m=f"{current_alt:.1f}")
+                    break
+            else:
+                log.warning("takeoff altitude timeout", target_alt_m=alt)
+
         elif cmd == "goto_waypoint":
             lat = float(payload.get("lat", 0))
             lon = float(payload.get("lon", 0))

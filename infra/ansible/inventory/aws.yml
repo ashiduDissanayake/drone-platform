@@ -7,8 +7,8 @@ all:
     sim_host:
       hosts:
         sitl-aws:
-          ansible_host: ""  # Fill in with: terraform -chdir=../terraform output -raw sitl_public_ip
+          ansible_host: "13.222.31.95"  # Updated from Terraform output
           ansible_user: ubuntu
-          ansible_ssh_private_key_file: ../terraform/sitl-key.pem
+          ansible_ssh_private_key_file: /Users/ashidudissanayake/Dev/drone-platform/infra/terraform/sitl-key.pem
           ansible_python_interpreter: /usr/bin/python3
-          ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+          ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30'

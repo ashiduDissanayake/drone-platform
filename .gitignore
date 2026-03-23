@@ -26,3 +26,21 @@ config/generated/
 # Local environment
 .env
 config/settings.local.toml
+
+# MAVLink logs (should not be committed)
+*.tlog
+*.tlog.raw
+*.parm
+mav.*
+
+# UI build artifacts
+ui/node_modules/
+ui/dist/
+
+# Python virtual environments
+.venv/
+
+# Terraform state (contains secrets)
+*.tfstate
+*.tfstate.backup
+.terraform/

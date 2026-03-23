@@ -32,7 +32,7 @@ STEP_STATUSES=()
 STEP_MSGS=()
 
 current_step=0
-total_steps=8
+total_steps=9
 
 log_step() {
     current_step=$((current_step + 1))
@@ -234,7 +234,22 @@ else
     fi
 fi
 
-# Step 8: Verify SITL is running
+# Step 8: WireGuard VPN setup
+log_step "Setting up WireGuard VPN tunnel..."
+
+if [ -z "$EXIT_EARLY" ]; then
+    WG_SCRIPT="$REPO_ROOT/simulation/gazebo/setup-wireguard-vpn.sh"
+    if NON_INTERACTIVE=1 bash "$WG_SCRIPT"; then
+        WG_CONF="$REPO_ROOT/infra/terraform/wireguard/drone-platform.conf"
+        mark_success "wireguard" "WireGuard configured — import $WG_CONF into WireGuard.app"
+    else
+        mark_warning "wireguard" "WireGuard not configured (install wireguard-tools and re-run setup-wireguard-vpn.sh)"
+    fi
+else
+    mark_warning "wireguard" "Skipped (previous failures)"
+fi
+
+# Step 9: Verify SITL is running
 log_step "Verifying SITL is running..."
 
 if [ -z "$EXIT_EARLY" ]; then
@@ -326,8 +341,12 @@ if [ "$FAILED_COUNT" -eq 0 ] && [ "$WARNING_COUNT" -eq 0 ]; then
     echo -e "${GREEN}  ✓ SETUP COMPLETE - ALL CHECKS PASSED${NC}"
     echo -e "${GREEN}==========================================${NC}"
     echo ""
-    echo "Usage:"
-    echo "  python3 -m autonomy.mission_manager --deployment config/generated/cloud-deployment.yaml"
+    echo "Next steps:"
+    echo "  1. Import WireGuard config into WireGuard.app:"
+    echo "     $REPO_ROOT/infra/terraform/wireguard/drone-platform.conf"
+    echo "  2. Activate the 'drone-platform' tunnel in WireGuard.app"
+    echo "  3. Verify: ping -c 3 10.8.0.1"
+    echo "  4. Run Gazebo (Task 4): ./setup-gazebo-client-mac.sh"
     echo ""
     exit 0
 elif [ "$FAILED_COUNT" -eq 0 ]; then

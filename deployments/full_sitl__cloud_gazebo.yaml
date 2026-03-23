@@ -1,0 +1,19 @@
+apiVersion: drone-platform/v1
+kind: Deployment
+metadata:
+  name: full_sitl__cloud_gazebo
+  description: >
+    Cloud SITL + Gazebo headless co-located on EC2.
+    SITL and Gazebo run on the same EC2 instance via loopback (127.0.0.1).
+    No VPN or FDM relay required. This is the stable headless simulation deployment.
+    For the full web platform (API + UI), use full_sitl__web_platform.yaml instead.
+spec:
+  profile: profiles/full_sitl.yaml
+  topology: topologies/split_device.yaml
+  inventory: inventory/cloud.yaml
+  params:
+    # MAVLink connection to SITL via MAVProxy on EC2
+    sitl_connection: "tcp:15.207.113.11:5760"
+    # Gazebo and SITL are co-located on EC2 loopback
+    # SITL uses --sim-address 127.0.0.1 (no cross-network FDM traffic)
+    gazebo_mode: "headless_ec2"

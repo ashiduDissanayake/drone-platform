@@ -74,7 +74,7 @@ resource "aws_security_group" "sitl" {
   }
 
   tags = {
-    Name = "drone-platform-sitl-sg"
+    Name    = "drone-platform-sitl-sg"
     Project = "drone-platform"
   }
 
@@ -162,4 +162,46 @@ output "ansible_command" {
 output "sitl_security_group" {
   description = "Security group ID for SITL"
   value       = aws_security_group.sitl.id
+}
+
+# WireGuard public key — populated by Ansible after provisioning
+# Run: ansible-playbook infra/ansible/site.yml, then terraform refresh
+data "local_file" "wireguard_ec2_public_key" {
+  filename = "${path.module}/wireguard/ec2_public_key.txt"
+}
+
+output "wireguard_ec2_public_key" {
+  description = "EC2 WireGuard public key (use in Mac peer config)"
+  value       = trimspace(data.local_file.wireguard_ec2_public_key.content)
+}
+
+# Add WebSocket and noVNC ports to security group
+resource "aws_security_group_rule" "gazebo_websocket" {
+  type              = "ingress"
+  from_port         = 9002
+  to_port           = 9002
+  protocol          = "tcp"
+  cidr_blocks       = ["${chomp(data.http.my_ip.response_body)}/32"]
+  security_group_id = aws_security_group.sitl.id
+  description       = "Gazebo WebSocket"
+}
+
+resource "aws_security_group_rule" "novnc" {
+  type              = "ingress"
+  from_port         = 6901
+  to_port           = 6901
+  protocol          = "tcp"
+  cidr_blocks       = ["${chomp(data.http.my_ip.response_body)}/32"]
+  security_group_id = aws_security_group.sitl.id
+  description       = "noVNC web interface"
+}
+
+resource "aws_security_group_rule" "wireguard" {
+  type              = "ingress"
+  from_port         = 51820
+  to_port           = 51820
+  protocol          = "udp"
+  cidr_blocks       = ["${chomp(data.http.my_ip.response_body)}/32"]
+  security_group_id = aws_security_group.sitl.id
+  description       = "WireGuard VPN"
 }
