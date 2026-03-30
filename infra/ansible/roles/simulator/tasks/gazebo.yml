@@ -1,0 +1,94 @@
+---
+# Gazebo Harmonic + ardupilot_gazebo plugin installation
+# Ubuntu 22.04 (Jammy) — headless, no display required
+
+- name: Install Gazebo Harmonic
+  block:
+    - name: Install Gazebo build dependencies
+      apt:
+        name:
+          - cmake
+          - build-essential
+          - curl
+          - lsb-release
+          - wget
+          - rapidjson-dev
+          - libopencv-dev
+          - libgstreamer1.0-dev
+          - libgstreamer-plugins-base1.0-dev
+        state: present
+        update_cache: false
+      become: true
+
+    - name: Add OSRF GPG key
+      shell: |
+        curl -sSL https://packages.osrfoundation.org/gazebo.gpg \
+          -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+      become: true
+
+    - name: Add Gazebo Harmonic APT repository
+      shell: |
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] \
+          http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+          | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+      args:
+        creates: /etc/apt/sources.list.d/gazebo-stable.list
+      become: true
+
+    - name: Update apt cache after adding Gazebo repo
+      apt:
+        update_cache: true
+      become: true
+
+    - name: Install gz-harmonic
+      apt:
+        name:
+          - gz-harmonic
+          - libgz-sim8-dev
+        state: present
+      become: true
+
+    - name: Clone ardupilot_gazebo plugin
+      git:
+        repo: https://github.com/ArduPilot/ardupilot_gazebo.git
+        dest: "{{ ansible_facts['env']['HOME'] }}/ardupilot_gazebo"
+        version: main
+        force: true
+      register: ardupilot_gazebo_clone
+
+    - name: Build ardupilot_gazebo plugin
+      shell: |
+        cd ~/ardupilot_gazebo
+        mkdir -p build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        make -j$(nproc)
+      register: gazebo_build
+
+    - name: Set Gazebo environment in .bashrc
+      blockinfile:
+        path: "{{ ansible_facts['env']['HOME'] }}/.bashrc"
+        marker: "# {mark} ARDUPILOT GAZEBO ENV"
+        block: |
+          export GZ_SIM_SYSTEM_PLUGIN_PATH=$HOME/ardupilot_gazebo/build
+          export GZ_SIM_RESOURCE_PATH=$HOME/ardupilot_gazebo/models:$HOME/ardupilot_gazebo/worlds
+
+    - name: Verify Gazebo binary exists
+      shell: which gz
+      register: gz_binary
+      changed_when: false
+
+    - name: Show Gazebo version
+      shell: gz sim --version 2>&1 | head -2
+      register: gz_version
+      changed_when: false
+
+    - name: Print Gazebo status
+      debug:
+        msg: "Gazebo binary: {{ gz_binary.stdout }} | Version: {{ gz_version.stdout }}"
+
+  rescue:
+    - fail:
+        msg: "Gazebo Harmonic installation failed. Check apt logs."

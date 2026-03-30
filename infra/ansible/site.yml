@@ -1,18 +1,6 @@
 ---
-- name: Simulator role skeleton
+- name: Simulator — ArduPilot SITL + Gazebo Harmonic
   hosts: sim_host
   gather_facts: true
   roles:
     - simulator
-
-- name: Autonomy role skeleton
-  hosts: companion_host:control_host
-  gather_facts: true
-  roles:
-    - autonomy
-
-- name: Ground control role skeleton
-  hosts: gcs_host:control_host
-  gather_facts: true
-  roles:
-    - gcs

@@ -164,44 +164,23 @@ output "sitl_security_group" {
   value       = aws_security_group.sitl.id
 }
 
-# WireGuard public key — populated by Ansible after provisioning
-# Run: ansible-playbook infra/ansible/site.yml, then terraform refresh
-data "local_file" "wireguard_ec2_public_key" {
-  filename = "${path.module}/wireguard/ec2_public_key.txt"
-}
-
-output "wireguard_ec2_public_key" {
-  description = "EC2 WireGuard public key (use in Mac peer config)"
-  value       = trimspace(data.local_file.wireguard_ec2_public_key.content)
-}
-
-# Add WebSocket and noVNC ports to security group
-resource "aws_security_group_rule" "gazebo_websocket" {
+# Sprint 1 — ROS2 WebSocket ports
+resource "aws_security_group_rule" "rosbridge" {
   type              = "ingress"
-  from_port         = 9002
-  to_port           = 9002
+  from_port         = 9090
+  to_port           = 9090
   protocol          = "tcp"
   cidr_blocks       = ["${chomp(data.http.my_ip.response_body)}/32"]
   security_group_id = aws_security_group.sitl.id
-  description       = "Gazebo WebSocket"
+  description       = "rosbridge WebSocket (ROS2 browser access)"
 }
 
-resource "aws_security_group_rule" "novnc" {
+resource "aws_security_group_rule" "foxglove" {
   type              = "ingress"
-  from_port         = 6901
-  to_port           = 6901
+  from_port         = 8765
+  to_port           = 8765
   protocol          = "tcp"
   cidr_blocks       = ["${chomp(data.http.my_ip.response_body)}/32"]
   security_group_id = aws_security_group.sitl.id
-  description       = "noVNC web interface"
-}
-
-resource "aws_security_group_rule" "wireguard" {
-  type              = "ingress"
-  from_port         = 51820
-  to_port           = 51820
-  protocol          = "udp"
-  cidr_blocks       = ["${chomp(data.http.my_ip.response_body)}/32"]
-  security_group_id = aws_security_group.sitl.id
-  description       = "WireGuard VPN"
+  description       = "Foxglove Bridge (dev/debug)"
 }

@@ -63,13 +63,13 @@ Browser
 ## SSH to EC2
 ```bash
 ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-  -i infra/terraform/sitl-key.pem ubuntu@15.207.113.11
+  -i infra/terraform/sitl-key.pem ubuntu@13.234.232.144
 ```
 
 ## Quick Commands
 ```bash
 # SSH to EC2
-ssh -i infra/terraform/sitl-key.pem ubuntu@15.207.113.11
+ssh -i infra/terraform/sitl-key.pem ubuntu@13.234.232.144
 
 # Validate config
 python ops/scripts/validate-config.py

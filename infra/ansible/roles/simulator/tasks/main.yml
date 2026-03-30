@@ -1,7 +1,8 @@
 ---
-- name: Complete ArduPilot SITL Setup
+- name: Install and launch ArduPilot SITL + Gazebo Harmonic
   block:
-    - name: Install all dependencies
+    # ── System dependencies ────────────────────────────────────────────────
+    - name: Install system dependencies
       apt:
         name:
           - git
@@ -15,6 +16,8 @@
           - net-tools
           - psmisc
           - swig
+          - curl
+          - wget
         state: present
         update_cache: true
       become: true
@@ -24,7 +27,7 @@
       become: true
       changed_when: false
 
-    - name: Install all Python packages at once
+    - name: Install Python packages
       pip:
         name:
           - pymavlink>=2.4.0
@@ -37,6 +40,7 @@
         executable: pip3
       become: true
 
+    # ── ArduPilot SITL binary ──────────────────────────────────────────────
     - name: Create ArduPilot directory structure
       file:
         path: "{{ item }}"
@@ -47,13 +51,12 @@
         - "{{ ansible_facts['env']['HOME'] }}/ardupilot/ArduCopter"
         - "{{ ansible_facts['env']['HOME'] }}/ardupilot/Tools/autotest/default_params"
 
-    - name: Download pre-built ArduPilot SITL binary (Copter latest)
+    - name: Download pre-built ArduPilot SITL binary
       get_url:
         url: https://firmware.ardupilot.org/Copter/latest/SITL_x86_64_linux_gnu/arducopter
         dest: "{{ ansible_facts['env']['HOME'] }}/ardupilot/build/sitl/bin/arducopter"
         mode: "0755"
         force: true
-      register: binary_download
 
     - name: Download default copter parameters
       get_url:
@@ -61,147 +64,161 @@
         dest: "{{ ansible_facts['env']['HOME'] }}/ardupilot/Tools/autotest/default_params/copter.parm"
         force: false
 
-    - name: Verify SITL binary exists and is executable
-      shell: |
-        ls -la ~/ardupilot/build/sitl/bin/arducopter
-        ~/ardupilot/build/sitl/bin/arducopter --version 2>&1 | head -2 || true
-      register: sitl_binary
+    - name: Verify SITL binary
+      shell: ~/ardupilot/build/sitl/bin/arducopter --version 2>&1 | head -2
+      register: sitl_version
       changed_when: false
 
-    - name: Create SITL+MAVProxy runner script
+    - name: Print SITL version
+      debug:
+        msg: "SITL: {{ sitl_version.stdout }}"
+
+    # ── Gazebo Harmonic + ardupilot_gazebo plugin ─────────────────────────
+    - name: Install Gazebo Harmonic
+      include_tasks: gazebo.yml
+
+    # ── Unified stack runner script ────────────────────────────────────────
+    # Startup order: Gazebo (opens JSON:9002) → SITL (connects JSON) → MAVProxy
+    - name: Create run-stack.sh
       copy:
-        dest: "{{ ansible_facts['env']['HOME'] }}/run-sitl.sh"
+        dest: "{{ ansible_facts['env']['HOME'] }}/run-stack.sh"
+        mode: "0755"
         content: |
           #!/bin/bash
-          # SITL + MAVProxy runner (corrected for GCS heartbeat)
-          set -e
+          # Drone Platform — SITL + Gazebo + MAVProxy stack launcher
+          # Gazebo first (-s server-only, headless EC2), SITL connects to it, then MAVProxy
+          # Verified working: ardupilot_gazebo plugin opens UDP 9002, SITL sends JSON to it.
 
-          echo "[$(date)] Starting SITL + MAVProxy..."
+          export GZ_SIM_SYSTEM_PLUGIN_PATH=$HOME/ardupilot_gazebo/build
+          export GZ_SIM_RESOURCE_PATH=$HOME/ardupilot_gazebo/models:$HOME/ardupilot_gazebo/worlds
 
-          cleanup() {
-            pkill -9 -f arducopter 2>/dev/null || true
-            pkill -9 -f mavproxy 2>/dev/null || true
-            screen -wipe 2>/dev/null || true
-            sleep 2
-          }
-          cleanup
+          echo "[$(date)] Stopping any existing stack..."
+          pkill -9 -f arducopter 2>/dev/null || true
+          pkill -9 -f mavproxy  2>/dev/null || true
+          pkill -9 -f "gz sim"  2>/dev/null || true
+          screen -wipe           2>/dev/null || true
+          sleep 3
 
-          cd ~/ardupilot/ArduCopter
+          # 1. Gazebo server-only (-s skips Ogre2 rendering — required for headless EC2)
+          #    ArduPilotPlugin opens UDP 9002, SITL connects to it.
+          echo "[$(date)] Starting Gazebo server (iris_runway world, server-only mode)..."
+          screen -dmS gazebo bash -c "
+            export GZ_SIM_SYSTEM_PLUGIN_PATH=\$HOME/ardupilot_gazebo/build
+            export GZ_SIM_RESOURCE_PATH=\$HOME/ardupilot_gazebo/models:\$HOME/ardupilot_gazebo/worlds
+            gz sim -s -v4 -r iris_runway.sdf 2>&1 | tee /tmp/gazebo.log
+          "
 
-          # Start SITL in screen (internal port 5761)
-          screen -dmS sitl bash -c '
+          echo "[$(date)] Waiting for Gazebo ArduPilot plugin to open UDP 9002..."
+          for i in $(seq 1 60); do
+            if ss -ulnp 2>/dev/null | grep -q '9002'; then
+              echo "[$(date)] ✓ Gazebo ready, UDP 9002 open (took ${i}s)"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "[$(date)] WARNING: UDP 9002 not seen after 60s, continuing anyway"
+            fi
+            sleep 1
+          done
+
+          # 2. ArduPilot SITL — sends JSON to Gazebo UDP 9002, receives on 9003
+          #    --serial0 tcp:5761 = SITL listens on TCP 5761 for MAVProxy
+          echo "[$(date)] Starting ArduPilot SITL..."
+          screen -dmS sitl bash -c "
             export HOME=/home/ubuntu
-            cd ~/ardupilot/ArduCopter
-            exec ../build/sitl/bin/arducopter \
+            cd \$HOME/ardupilot/ArduCopter
+            ../build/sitl/bin/arducopter \
               -w \
               --model JSON \
               --home -35.363261,149.165230,584,353 \
               --defaults ../Tools/autotest/default_params/copter.parm \
               --serial0 tcp:5761 \
-              --sim-address 127.0.0.1
-          '
+              --sim-address 127.0.0.1 \
+              2>&1 | tee /tmp/sitl.log
+          "
 
-          echo "[$(date)] SITL started, waiting for port 5761..."
-
-          # Wait for SITL to be connectable (not just listening)
-          for i in {1..60}; do
-            if nc -z 127.0.0.1 5761 2>/dev/null; then
-              echo "[$(date)] ✓ SITL ready on 5761"
-              # Extra wait for full initialization
+          echo "[$(date)] Waiting for SITL MAVLink port TCP 5761..."
+          for i in $(seq 1 60); do
+            if ss -tlnp 2>/dev/null | grep -q '5761'; then
+              echo "[$(date)] ✓ SITL ready on TCP 5761 (took ${i}s)"
               sleep 5
               break
             fi
             sleep 1
           done
 
-          # Start MAVProxy in screen (provides GCS heartbeat)
-          # tcpin:0.0.0.0:5760 makes MAVProxy LISTEN on 5760 for external connections
+          # 3. MAVProxy — bridges SITL TCP 5761 → external TCP 5760
+          echo "[$(date)] Starting MAVProxy..."
           screen -dmS mavproxy mavproxy.py \
             --master=tcp:127.0.0.1:5761 \
             --out=tcpin:0.0.0.0:5760
 
-          echo "[$(date)] MAVProxy started, waiting for port 5760..."
-
-          # Wait for MAVProxy to listen on 5760
-          for i in {1..30}; do
-            if ss -tlnp 2>/dev/null | grep -q '5760.*mavproxy'; then
-              echo "[$(date)] ✓ MAVProxy ready on 5760"
+          echo "[$(date)] Waiting for MAVProxy external port TCP 5760..."
+          for i in $(seq 1 30); do
+            if ss -tlnp 2>/dev/null | grep -q '5760'; then
+              echo "[$(date)] ✓ MAVProxy ready on TCP 5760 (took ${i}s)"
               break
             fi
             sleep 1
           done
 
           echo ""
-          echo "=== SITL + MAVProxy Running ==="
-          echo "External: tcp://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):5760"
-          pgrep -a arducopter | head -1 | sed 's/^/  /'
-          pgrep -a mavproxy | head -1 | sed 's/^/  /'
-        mode: "0755"
+          echo "=== Stack Running ==="
+          echo "  Gazebo   : screen -r gazebo  | log: /tmp/gazebo.log"
+          echo "  SITL     : screen -r sitl    | log: /tmp/sitl.log"
+          echo "  MAVProxy : screen -r mavproxy"
+          echo "  External : tcp://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null):5760"
+          echo ""
+          pgrep -a arducopter | head -1 | sed "s/^/  SITL:     /"
+          pgrep -a mavproxy   | head -1 | sed "s/^/  MAVProxy: /"
+          pgrep -a gz         | head -1 | sed "s/^/  Gazebo:   /"
 
-    - name: Check current status
-      shell: ss -tlnp 2>/dev/null | grep -q ':5760' && echo "running" || echo "stopped"
-      register: current_status
+    # ── Stop existing and launch ──────────────────────────────────────────
+    - name: Stop any existing stack
+      shell: |
+        pkill -9 -f arducopter 2>/dev/null || true
+        pkill -9 -f mavproxy   2>/dev/null || true
+        pkill -9 -f "gz sim"   2>/dev/null || true
+        screen -wipe           2>/dev/null || true
+        sleep 3
       changed_when: false
 
-    - name: Stop existing if running
-      shell: |
-        # Kill by PID to avoid matching the SSH session itself
-        pgrep -f 'arducopter' | xargs -r kill -9 2>/dev/null || true
-        pgrep -f 'mavproxy' | xargs -r kill -9 2>/dev/null || true
-        screen -wipe 2>/dev/null || true
-        sleep 2
-      when: current_status.stdout == "running"
-      ignore_errors: true
-
-    - name: Start SITL+MAVProxy
-      shell: ~/run-sitl.sh
-      async: 120
+    - name: Launch SITL + Gazebo + MAVProxy stack
+      shell: ~/run-stack.sh
+      async: 300
       poll: 0
 
-    - name: Wait for startup
+    - name: Wait for stack startup
       pause:
-        seconds: 15
+        seconds: 90
 
-    - name: Verify SITL is listening (check for any SITL port)
-      shell: ss -tlnp | grep -q 'arducopter' && echo "yes" || echo "no"
-      register: sitl_listening
+    # ── Verify ────────────────────────────────────────────────────────────
+    - name: Verify Gazebo is running
+      shell: pgrep -a gz | head -2
+      register: gz_procs
       changed_when: false
-      until: sitl_listening.stdout == "yes"
-      retries: 10
-      delay: 3
+      failed_when: gz_procs.stdout == ""
 
-    - name: Show SITL status
-      debug:
-        msg: "SITL is listening on: {{ sitl_listening.stdout }}"
-
-    - name: Get status
-      shell: |
-        echo "=== Status ==="
-        pgrep -a arducopter | head -1 || echo "SITL: Not running"
-        pgrep -a mavproxy | head -1 || echo "MAVProxy: Not running"
-        echo "=== Ports ==="
-        ss -tlnp | grep -E '576[0123]' || echo "No MAVLink ports"
-        echo "=== External Access ==="
-        echo "tcp://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null):5760"
-      register: status
+    - name: Verify SITL is running
+      shell: pgrep -a arducopter | head -2
+      register: sitl_procs
       changed_when: false
+      failed_when: sitl_procs.stdout == ""
 
-    - name: Show status
+    - name: Verify MAVProxy is listening on 5760
+      shell: ss -tlnp | grep 5760
+      register: mavproxy_port
+      changed_when: false
+      failed_when: mavproxy_port.stdout == ""
+
+    - name: Show stack status
       debug:
-        var: status.stdout_lines
+        msg:
+          - "Gazebo  : {{ gz_procs.stdout }}"
+          - "SITL    : {{ sitl_procs.stdout }}"
+          - "MAVProxy: {{ mavproxy_port.stdout }}"
 
   rescue:
     - debug:
-        msg: "Setup failed. SSH: ssh -i {{ ansible_ssh_private_key_file }} ubuntu@{{ inventory_hostname }}"
+        msg: "Stack setup failed. Check /tmp/gazebo.log and /tmp/sitl.log on EC2."
     - fail:
-        msg: "SITL setup failed"
-
-# Include Gazebo bridge setup (optional, for Gazebo visualization)
-- name: Include Gazebo bridge setup
-  include_tasks: gazebo-bridge.yml
-  when: enable_gazebo_bridge | default(false) | bool
-
-# Include WireGuard VPN setup (required for Gazebo to reach SITL)
-- name: Include WireGuard VPN setup
-  include_tasks: wireguard.yml
-  when: enable_wireguard | default(false) | bool
+        msg: "Simulator stack setup failed"

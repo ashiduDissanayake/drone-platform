@@ -2,6 +2,18 @@
 
 **Sprint goal:** ArduPilot SITL + Gazebo headless on EC2 with all drone state as ROS2 topics. Browser can subscribe to live telemetry via rosbridge WebSocket. Verified in Foxglove Studio.
 
+## ✅ Pre-Sprint Foundation (completed 2026-03-24)
+
+- [x] Fresh EC2 provisioned: `13.234.232.144` (c7i-flex.large, ap-south-1, Ubuntu 22.04)
+- [x] ArduPilot SITL binary downloaded and running
+- [x] Gazebo Harmonic installed + ardupilot_gazebo plugin built
+- [x] **Verified:** `gz sim -s -r iris_runway.sdf` (server-only, headless) runs stably
+- [x] **Verified:** SITL ↔ Gazebo JSON link active: ~1000 UDP packets/sec on 127.0.0.1:9002
+- [x] MAVProxy bridging SITL TCP 5761 → external TCP 5760
+- [x] **Verified:** MAVLink v2 HEARTBEAT + GPS_RAW_INT flowing on tcp://13.234.232.144:5760
+- [x] `~/run-stack.sh` restarts full stack; Ansible `site.yml` codifies it
+- [x] Key lessons: use `gz sim -s` on EC2 (no GPU); plugin deps = OpenCV + GStreamer + libgz-sim8-dev
+
 ---
 
 ## Task 1 — EC2: Install ROS2 Humble
